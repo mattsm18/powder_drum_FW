@@ -39,11 +39,13 @@ class AS5600 {
         uint8_t I2C_ADDRESS = 0x36;
 
         // Angular velocity calculation attributes
-        unsigned long _lastMicros = 0;
-        float _lastAngle = 0;
-        float _angularVelocity = 0;
-        float _lowPassAlpha = 0.5f;
+        unsigned long _lastMicros;
+        uint16_t _lastRaw = 0xFFFF;
+        float _angularVelocity;
 
+        float _thetaPrev = 0.0f;
+        float _omega = 0.0f;
+        
         //*** Register accessing functions ***//
         uint8_t readRegister(uint8_t reg);
         uint16_t readRegister16(uint8_t reg);

@@ -7,6 +7,7 @@ AS5600::AS5600(const uint8_t address, TwoWire &wirePort){
     I2C_ADDRESS = address;
     wire = &wirePort;
     wire->begin();
+    wire->setClock(400000); //i2c fast mode
 }
 
 ///////////////////////////////////////
@@ -49,38 +50,31 @@ uint16_t AS5600::readRegister16(uint8_t reg){
 
 void AS5600::update()
 {
+    static const float TAU = 0.1f;
+
+    uint16_t raw = readRegister16(0x0C);
     
-    float angle = getAngleRadians();
+    // Only process fresh data
+    if (raw == _lastRaw) return;
+    _lastRaw = raw;
 
-    // Get dt (change in time) from the difference between now and the last iteration
-    unsigned long now = micros();
-    float dt = (now - _lastMicros) / 1e6f;
-    if (dt <= 0.0001f) return;
-
-    // Check dt is valid
-    if(dt > 0){
-        
-        // Get delta (change in angle)
-        float delta = angle - _lastAngle;
-
-        // Handle wraparound (raw angle is 0-4095)
-        if(delta > M_PI) delta -= 2.0f * M_PI;
-        if(delta < -M_PI) delta += 2.0f * M_PI;
-
-        // Calculate the angular velocity as [ change in angle / change in time ] (rad / s)
-        float omega = delta / dt; 
-
-        // SIGNAL DEGRADATION!!!!!
-        _angularVelocity = _lowPassAlpha * omega + (1.0f - _lowPassAlpha) * _angularVelocity;
-
-        
-    }
-
-    _lastAngle = angle;
+    uint32_t now = micros();
+    float dt = (now - _lastMicros) * 1e-6f;
     _lastMicros = now;
-}
 
-    
+    float theta = raw * (2.0f * M_PI / 4096.0f);
+    float dtheta = theta - _thetaPrev;
+
+    if (dtheta >  M_PI) dtheta -= 2.0f * M_PI;
+    if (dtheta < -M_PI) dtheta += 2.0f * M_PI;
+
+    float omegaRaw = dtheta / dt;  // dt is real elapsed time since last fresh read
+
+    float alpha = dt / (TAU + dt);
+    _omega = alpha * omegaRaw + (1.0f - alpha) * _omega;
+    _angularVelocity = _omega;
+    _thetaPrev = theta;
+}
 
 ///////////////////////////////////////
 // Public API

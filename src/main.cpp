@@ -14,14 +14,15 @@ Purpose:
 #include <StepperMotor.h>
 #include "pins.h"
 
-#define ISR_FREQ_HZ 100000
+#define ISR_FREQ_HZ 50000
+#define ENCODER_SAMPLE_RATE_US 1000
 
 // Function Declaration
 void setupISR();
 
 // Instantiate Objects
 AS5600 encoder;
-StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, EIGHTH, ISR_FREQ_HZ);
+StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, SIXTEENTH, 200, ISR_FREQ_HZ);
 
 void setup() {
 
@@ -33,19 +34,24 @@ void setup() {
 
   // Setup Timer Interrupt 
   setupISR();
-  
+
 }
 
 void loop() {
-
     static uint32_t lastEncoderUpdate = 0;
-    Serial.println(-encoder.getAngularVelocity());
-
-    if (micros() - lastEncoderUpdate >= 1000) {
-      lastEncoderUpdate += 1000;
+    if (micros() - lastEncoderUpdate >= ENCODER_SAMPLE_RATE_US) {
+      lastEncoderUpdate += ENCODER_SAMPLE_RATE_US;
       encoder.update();
     }
 
+    // Serial print — rate-limited separately (every 50ms)
+    static uint32_t lastPrint = 0;
+    if (micros() - lastPrint >= 50000) {
+        lastPrint += 50000;
+        Serial.println(-encoder.getAngularVelocity());
+    }
+
+    // Serial input
     if (Serial.available()) {
         String input = Serial.readStringUntil('\n');
         input.trim();
@@ -53,6 +59,7 @@ void loop() {
             motor.setAngularVelocity(input.toFloat());
     }
 }
+
 
 //////////////////////////////////////////////////////////////////////////////////
 // HARDWARE INTERRUPT SERVICE ROUTINE (ISR) -> Fixed clock for motor updates

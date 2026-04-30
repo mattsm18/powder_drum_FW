@@ -22,8 +22,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.animation as animation
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-MAX_VEL    =  10 * math.pi
-MIN_VEL    = -10 * math.pi
+MAX_VEL    =  15 * math.pi
+MIN_VEL    = -15 * math.pi
 BAUD_RATE  = 115200
 HISTORY    = 200
 GRAPH_HZ   = 20

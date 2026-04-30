@@ -17,6 +17,9 @@ public:
     float getAngularVelocity() const;
 
     static void tick();
+    
+    //temp debug
+    float getP(){ return _phaseIncrement; }
 
 private:
     static StepperMotor* _instance;
