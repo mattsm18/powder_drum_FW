@@ -10,22 +10,68 @@ Purpose:
 */
 
 #include <Arduino.h>
+#include <AS5600.h>
+#include <StepperMotor.h>
 #include "pins.h"
 
-void setup() {
-  
-  // TB6600 Pins
-  pinMode(STEPPER_DIR_PIN, OUTPUT);
-  pinMode(STEPPER_PUL_PIN, OUTPUT);
+#define ISR_FREQ_HZ 100000
 
-  // 5V Relay module
+// Function Declaration
+void setupISR();
+
+// Instantiate Objects
+AS5600 encoder;
+StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, EIGHTH, ISR_FREQ_HZ);
+
+void setup() {
+
+  // Start serial comms -> baud: 115200
+  Serial.begin(115200);
+  
+  // Init 5V Relay module pin
   pinMode(LED_PANEL_RELAY_PIN, OUTPUT);
 
-  // I2C comms setup (AS5600 encoder)
-
-
+  // Setup Timer Interrupt 
+  setupISR();
+  
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+
+    static uint32_t lastEncoderUpdate = 0;
+    Serial.println(-encoder.getAngularVelocity());
+
+    if (micros() - lastEncoderUpdate >= 1000) {
+      lastEncoderUpdate += 1000;
+      encoder.update();
+    }
+
+    if (Serial.available()) {
+        String input = Serial.readStringUntil('\n');
+        input.trim();
+        if (input.length() > 0)
+            motor.setAngularVelocity(input.toFloat());
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// HARDWARE INTERRUPT SERVICE ROUTINE (ISR) -> Fixed clock for motor updates
+//////////////////////////////////////////////////////////////////////////////////
+
+// Setup function for Hardware interrupts, used to drive StepperMotors atomically
+void setupISR() {
+    cli();
+    TCB0.CTRLA   = 0;
+    TCB0.CTRLB   = TCB_CNTMODE_INT_gc;
+    TCB0.CCMP = (F_CPU / ISR_FREQ_HZ) - 1;
+    TCB0.INTCTRL = TCB_CAPT_bm;
+    TCB0.CTRLA   = TCB_ENABLE_bm | TCB_CLKSEL_CLKDIV1_gc;
+    sei();
+}
+
+// Attach ISR to StepperMotor step function
+ISR(TCB0_INT_vect) {
+    StepperMotor::tick();
+    TCB0.INTFLAGS = TCB_CAPT_bm;
+
 }
