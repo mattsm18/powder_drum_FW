@@ -10,7 +10,8 @@ public:
     (
         float kP, 
         float kI, 
-        float integralLimit
+        float integralLimit,
+        float deadband
     );
 
     //*** Methods ***/
@@ -22,6 +23,7 @@ private:
     float _kI;
     float _integralLimit;
     float _integral;
+    float _deadband;
 };
 
 

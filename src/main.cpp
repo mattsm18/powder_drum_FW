@@ -19,14 +19,16 @@ Purpose:
 //*** Definitions ***//
 
 // Timing
-#define ISR_FREQ_HZ 50000
+#define ISR_FREQ_HZ 20000
 #define ENCODER_SAMPLE_RATE_US 5000
-#define ENCODER_EMA_FILTER_TIME_CONST 0.15f
+#define ENCODER_EMA_FILTER_TIME_CONST 0.5f // EMA Low-Pass Noise filter
 
 // PI Controller
-#define KP 1
-#define KI 10
-#define INTEGRAL_LIMIT 20
+#define KP 1.0f
+#define KI 2.0f
+#define INTEGRAL_LIMIT 20    // Stops integral windup
+#define DEADBAND 0.0f       // Helps to limit noise at steady-state
+#define ACCEL_RAMP_RATE 5.0f 
 
 // Serial Comms
 #define SERIAL_BAUD_RATE 115200
@@ -42,11 +44,12 @@ void runSerialListener();
 
 //*** Instantiate Objects ***//
 AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
-StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::QUARTER, 200, ISR_FREQ_HZ);
-PIController piController(KP, KI, INTEGRAL_LIMIT);
+StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::SIXTEENTH, 200, ISR_FREQ_HZ);
+PIController piController(KP, KI, INTEGRAL_LIMIT, DEADBAND);
 
 //*** Global Variables ***/
-float setpointAngularVelocity = 0;
+float setpoint = 0;
+float rampedSetpoint = 0.0f;
 
 void setup() {
 
@@ -95,25 +98,23 @@ void runSpeedControl()
 {
     encoder.update();
 
-    // Define timing
     static uint32_t lastTime = 0;
     uint32_t now = micros();
 
-    // Guard against inital case
     if (lastTime == 0) { lastTime = now; return; }
-    
-    // Calculate dt
+
     float dt = (now - lastTime) / 1000000.0f;
     lastTime = now;
 
-    // Run PI Controller
-    float error = setpointAngularVelocity - (-encoder.getAngularVelocity());
+    // Ramp commanded setpoint toward target
+    float delta = setpoint - rampedSetpoint;
+    float maxStep = ACCEL_RAMP_RATE * dt;
+    rampedSetpoint += constrain(delta, -maxStep, maxStep);
+
+    // PI tracks the ramp, not the target directly
+    float error = rampedSetpoint - (-encoder.getAngularVelocity());
     float output = piController.update(error, dt);
-
-    // refresh encoder and motor
     motor.setAngularVelocity(output);
-
-    //motor.setAngularVelocity(setpointAngularVelocity);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -125,6 +126,10 @@ void runSerialPrinter()
     static uint32_t lastPrint = 0;
     if (micros() - lastPrint >= SERIAL_LOG_RATE_US) {
         lastPrint += SERIAL_LOG_RATE_US;
+        Serial.print(setpoint);
+        Serial.print(",");
+        Serial.print(rampedSetpoint);
+        Serial.print(",");
         Serial.println(-encoder.getAngularVelocity());
     }
 }
@@ -136,5 +141,5 @@ void runSerialListener()
 
     String input = Serial.readStringUntil('\n');
     input.trim();
-    if (input.length() > 0) setpointAngularVelocity = input.toFloat();
+    if (input.length() > 0) setpoint = input.toFloat();
 }

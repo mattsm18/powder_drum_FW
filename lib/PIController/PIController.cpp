@@ -14,18 +14,22 @@ PIController::PIController
     (
         float kP, 
         float kI, 
-        float integralLimit
+        float integralLimit,
+        float deadband
     )
         : 
         _kP(kP), 
         _kI(kI), 
-        _integralLimit(integralLimit), 
+        _integralLimit(integralLimit),
+        _deadband(deadband), 
         _integral(0.0f) 
     {}
 
 // Accumulate integral with anti-windup clamp
 float PIController::update(float error, float dt) {
-        
+
+    if (fabsf(error) < _deadband) error = 0.0f;
+
     _integral += error * dt;
     _integral = constrain(_integral, -_integralLimit, _integralLimit);
 
