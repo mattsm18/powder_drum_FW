@@ -2,8 +2,19 @@
 
 StepperMotor* StepperMotor::_instance = nullptr;
 
-StepperMotor::StepperMotor(uint8_t stepPin, uint8_t dirPin, Microstep microstep, uint8_t stepsPerRev, uint32_t isrFreq)
-    : _stepPin(stepPin), _dirPin(dirPin), _stepsPerRev(stepsPerRev * microstep), _isrFreq(isrFreq)
+StepperMotor::StepperMotor
+(
+    uint8_t stepPin, 
+    uint8_t dirPin, 
+    Microstep microstep,
+    uint8_t stepsPerRev, 
+    uint32_t isrFreq
+)
+    : 
+    _stepPin(stepPin), 
+    _dirPin(dirPin), 
+    _stepsPerRev(stepsPerRev * microstep), 
+    _isrFreq(isrFreq)
 {
     pinMode(_stepPin, OUTPUT);
     pinMode(_dirPin, OUTPUT);

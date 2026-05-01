@@ -4,6 +4,8 @@ Author: Matthew Smith
 Date: 29/04/26
 Purpose:
 - Wrap AS5600 functionality into a managed class library
+- Estimate Angular Velocity with EMA Filter
+- Provide Public API for easy access of encoder measurements
 
 */
 

@@ -5,57 +5,62 @@ Author: Matthew Smith
 Date: 29/04/26
 Purpose:
 -  Entry point for powder drum FW
--  Initialise pins
--  Handle primary function calls for all components in the FW
+-  Call all higher level functionality
+-  Pass relevant data between objects
+
 */
 
 #include <Arduino.h>
-#include <AS5600.h>
-#include <StepperMotor.h>
+#include <AS5600.h>         // Encoder Library
+#include <StepperMotor.h>   // StepperMotor Library
+#include <PIController.h>   // PI Controller Libaray
 #include "pins.h"
 
-// Define sampling and filtering parameters
+//*** Definitions ***//
+
+// Timing
 #define ISR_FREQ_HZ 50000
 #define ENCODER_SAMPLE_RATE_US 5000
-#define ENCODER_EMA_FILTER_TIME_CONST 0.05
+#define ENCODER_EMA_FILTER_TIME_CONST 0.15f
 
-// Function Declaration
+// PI Controller
+#define KP 1
+#define KI 10
+#define INTEGRAL_LIMIT 20
+
+// Serial Comms
+#define SERIAL_BAUD_RATE 115200
+#define SERIAL_LOG_RATE_US 50000
+
+//*** Function Declarations ***//
+// Setup
 void setupISR();
 
-// Instantiate Objects with timing parameters
+void runSpeedControl();
+void runSerialPrinter();
+void runSerialListener();
+
+//*** Instantiate Objects ***//
 AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
 StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::QUARTER, 200, ISR_FREQ_HZ);
+PIController piController(KP, KI, INTEGRAL_LIMIT);
+
+//*** Global Variables ***/
+float setpointAngularVelocity = 0;
 
 void setup() {
 
-  // Start serial comms -> baud: 115200
-  Serial.begin(115200);
-  
-  // Init 5V Relay module pin
-  pinMode(LED_PANEL_RELAY_PIN, OUTPUT);
-
-  // Setup Timer Interrupt 
+  Serial.begin(SERIAL_BAUD_RATE);
   setupISR();
 
 }
 
 void loop() {
-    encoder.update();
 
-    // Serial print — rate-limited separately (every 50ms)
-    static uint32_t lastPrint = 0;
-    if (micros() - lastPrint >= 50000) {
-        lastPrint += 50000;
-        Serial.println(-encoder.getAngularVelocity());
-    }
-
-    // Serial input
-    if (Serial.available()) {
-        String input = Serial.readStringUntil('\n');
-        input.trim();
-        if (input.length() > 0)
-            motor.setAngularVelocity(input.toFloat());
-    }
+    runSpeedControl();
+    runSerialPrinter();
+    runSerialListener();
+    
 }
 
 
@@ -64,7 +69,8 @@ void loop() {
 //////////////////////////////////////////////////////////////////////////////////
 
 // Setup function for Hardware interrupts, used to drive StepperMotors atomically
-void setupISR() {
+void setupISR() 
+{
     cli();
     TCB0.CTRLA   = 0;
     TCB0.CTRLB   = TCB_CNTMODE_INT_gc;
@@ -75,8 +81,60 @@ void setupISR() {
 }
 
 // Attach ISR to StepperMotor step function
-ISR(TCB0_INT_vect) {
+ISR(TCB0_INT_vect) 
+{
     motor.tick();
     TCB0.INTFLAGS = TCB_CAPT_bm;
+}
 
+//////////////////////////////////////////////////////////////////////////////////
+// Motor Speed Control Handler -> Plumb closed-loop feedback
+//////////////////////////////////////////////////////////////////////////////////
+
+void runSpeedControl()
+{
+    encoder.update();
+
+    // Define timing
+    static uint32_t lastTime = 0;
+    uint32_t now = micros();
+
+    // Guard against inital case
+    if (lastTime == 0) { lastTime = now; return; }
+    
+    // Calculate dt
+    float dt = (now - lastTime) / 1000000.0f;
+    lastTime = now;
+
+    // Run PI Controller
+    float error = setpointAngularVelocity - (-encoder.getAngularVelocity());
+    float output = piController.update(error, dt);
+
+    // refresh encoder and motor
+    motor.setAngularVelocity(output);
+
+    //motor.setAngularVelocity(setpointAngularVelocity);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// Serial Comms Handlers -> Listens to incoming packets, send response packets
+//////////////////////////////////////////////////////////////////////////////////
+
+void runSerialPrinter()
+{
+    static uint32_t lastPrint = 0;
+    if (micros() - lastPrint >= SERIAL_LOG_RATE_US) {
+        lastPrint += SERIAL_LOG_RATE_US;
+        Serial.println(-encoder.getAngularVelocity());
+    }
+}
+
+void runSerialListener()
+{
+    // Return if not available
+    if(!Serial.available()) return;
+
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    if (input.length() > 0) setpointAngularVelocity = input.toFloat();
 }

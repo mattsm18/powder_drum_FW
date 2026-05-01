@@ -65,8 +65,7 @@ uint16_t AS5600::readRegister16(uint8_t reg){
 // omega = delta theta / delta time
 // Angular velocity = change in angle / change in time
 //
-// The AS5600 sensor has quantisation error because the LSB 
-//
+// Applies a light EMA (Exponential Moving Average) Filter to reduce quantisation
 
 void AS5600::update()
 {
