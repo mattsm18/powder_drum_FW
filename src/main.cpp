@@ -14,15 +14,17 @@ Purpose:
 #include <StepperMotor.h>
 #include "pins.h"
 
+// Define sampling and filtering parameters
 #define ISR_FREQ_HZ 50000
-#define ENCODER_SAMPLE_RATE_US 1000
+#define ENCODER_SAMPLE_RATE_US 5000
+#define ENCODER_EMA_FILTER_TIME_CONST 0.05
 
 // Function Declaration
 void setupISR();
 
-// Instantiate Objects
-AS5600 encoder;
-StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, SIXTEENTH, 200, ISR_FREQ_HZ);
+// Instantiate Objects with timing parameters
+AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
+StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::QUARTER, 200, ISR_FREQ_HZ);
 
 void setup() {
 
@@ -38,11 +40,7 @@ void setup() {
 }
 
 void loop() {
-    static uint32_t lastEncoderUpdate = 0;
-    if (micros() - lastEncoderUpdate >= ENCODER_SAMPLE_RATE_US) {
-      lastEncoderUpdate += ENCODER_SAMPLE_RATE_US;
-      encoder.update();
-    }
+    encoder.update();
 
     // Serial print — rate-limited separately (every 50ms)
     static uint32_t lastPrint = 0;
@@ -78,7 +76,7 @@ void setupISR() {
 
 // Attach ISR to StepperMotor step function
 ISR(TCB0_INT_vect) {
-    StepperMotor::tick();
+    motor.tick();
     TCB0.INTFLAGS = TCB_CAPT_bm;
 
 }

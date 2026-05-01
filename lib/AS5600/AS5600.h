@@ -15,17 +15,23 @@ Purpose:
 
 class AS5600 {
     public:
+
         //*** Constructor ***//
-        AS5600(const uint8_t I2C_ADDRESS = 0x36, TwoWire &wire = Wire);
+        AS5600
+        (
+            float sampleRate_us = 1000,
+            float EMATimeConst = 0.02,
+            uint8_t I2C_ADDRESS = 0x36, 
+            TwoWire &wire = Wire
+        );
 
         //*** Accessors ***//
-        uint16_t getRawAngle();
+        uint16_t readAngleReg();
+        uint16_t readFilteredAngleReg();
         float getAngleDegrees();
         float getAngleRadians();
         float getAngularVelocity();
-
-        //*** Queries ***//
-        bool isMagnetDetected();
+        float getFiltered();
         
         //*** Update ***/
         void update();
@@ -35,17 +41,19 @@ class AS5600 {
         //*** Internal Attributes ***/
 
         // I2C
-        TwoWire *wire = nullptr;
-        uint8_t I2C_ADDRESS = 0x36;
+        TwoWire *wire;
+        uint8_t I2C_ADDRESS;
 
-        // Angular velocity calculation attributes
+        // Angular Velocity Measurement and Filtering
+        float _sampleRate_us;
+        float _EMATimeConst;
         unsigned long _lastMicros;
-        uint16_t _lastRaw = 0xFFFF;
+        float _lastAngle;
+        float _thetaPrev;
+
+        // Internal storage
         float _angularVelocity;
 
-        float _thetaPrev = 0.0f;
-        float _omega = 0.0f;
-        
         //*** Register accessing functions ***//
         uint8_t readRegister(uint8_t reg);
         uint16_t readRegister16(uint8_t reg);

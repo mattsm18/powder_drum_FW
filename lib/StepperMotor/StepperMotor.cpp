@@ -34,7 +34,6 @@ void StepperMotor::stepIfDue() {
     if (_stepHigh) {
         PORTE.OUTCLR = (1 << 1);
         _stepHigh = false;
-        return;
     }
 
     // Accumulate phase

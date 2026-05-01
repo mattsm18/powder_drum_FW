@@ -3,7 +3,16 @@
 ///////////////////////////////////////
 // Constructor
 //
-AS5600::AS5600(const uint8_t address, TwoWire &wirePort){
+AS5600::AS5600
+( 
+    float sampleRate_us, 
+    float EMATimeConst,
+    uint8_t address, 
+    TwoWire &wirePort
+)
+{
+    _sampleRate_us = sampleRate_us;
+    _EMATimeConst = EMATimeConst;
     I2C_ADDRESS = address;
     wire = &wirePort;
     wire->begin();
@@ -48,31 +57,44 @@ uint16_t AS5600::readRegister16(uint8_t reg){
     return value;
 }
 
+// Encoder update function, used to measure the angular velocity
+// 
+// - Called in main() at clock speed
+// - Fires at _sampleRate_us which is passed on construction
+// 
+// omega = delta theta / delta time
+// Angular velocity = change in angle / change in time
+//
+// The AS5600 sensor has quantisation error because the LSB 
+//
+
 void AS5600::update()
 {
-    static const float TAU = 0.1f;
+    // Get angle as filtered angle from AS5600
+    uint16_t angle = readFilteredAngleReg();
 
-    uint16_t raw = readRegister16(0x0C);
-    
-    // Only process fresh data
-    if (raw == _lastRaw) return;
-    _lastRaw = raw;
+    // exit on stale data
+    if (angle == _lastAngle) { return; } 
 
-    uint32_t now = micros();
+    // Solve for dt (change in time)
+    unsigned long now = micros();
     float dt = (now - _lastMicros) * 1e-6f;
     _lastMicros = now;
 
-    float theta = raw * (2.0f * M_PI / 4096.0f);
-    float dtheta = theta - _thetaPrev;
+    // Solve for d(theta) (change in angle)
+    float theta = angle * (2.0f * M_PI / 4096.0f);
+    float d_theta = theta - _thetaPrev;
 
-    if (dtheta >  M_PI) dtheta -= 2.0f * M_PI;
-    if (dtheta < -M_PI) dtheta += 2.0f * M_PI;
+    // Handle wraparound (jump from 4095 -> 0 and 0 -> 4095)
+    if (d_theta >  M_PI) d_theta -= 2.0f * M_PI;
+    if (d_theta < -M_PI) d_theta += 2.0f * M_PI;
 
-    float omegaRaw = dtheta / dt;  // dt is real elapsed time since last fresh read
+    // calculate Angular Velocity
+    float angularVelocityRaw = d_theta / dt;
 
-    float alpha = dt / (TAU + dt);
-    _omega = alpha * omegaRaw + (1.0f - alpha) * _omega;
-    _angularVelocity = _omega;
+    // Apply Exponential Moving Average Filter (Low-Pass Filter)
+    float alpha = dt / (_EMATimeConst + dt);
+    _angularVelocity = alpha * angularVelocityRaw + (1.0f - alpha) * _angularVelocity;
     _thetaPrev = theta;
 }
 
@@ -81,10 +103,8 @@ void AS5600::update()
 //
 
 // Accessors
-uint16_t AS5600::getRawAngle()      { return readRegister16(0x0C);}
-float AS5600::getAngleDegrees()     { return getRawAngle() * 360.0 / 4096.0; }
-float AS5600::getAngleRadians()     { return getRawAngle() * (2.0f * M_PI) / 4096.0f; }
-float AS5600::getAngularVelocity()  { return _angularVelocity; }
-
-// Queries
-bool AS5600::isMagnetDetected() { return (readRegister(0x0B) & 0x20) != 0; }
+uint16_t AS5600::readAngleReg()         { return readRegister16(0x0C); }
+uint16_t AS5600::readFilteredAngleReg() { return readRegister16(0x0E); }
+float AS5600::getAngleDegrees()         { return readFilteredAngleReg() * 360.0 / 4096.0; }
+float AS5600::getAngleRadians()         { return readFilteredAngleReg() * (2.0f * M_PI) / 4096.0f; }
+float AS5600::getAngularVelocity()      { return _angularVelocity; }
