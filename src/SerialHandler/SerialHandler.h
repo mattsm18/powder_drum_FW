@@ -36,7 +36,8 @@ typedef void    (*SetCallback)(uint8_t parameter_id, float value);
 typedef float (*GetCallback)(uint8_t parameter_id);
 
 // Union definition of float -> IEEE 754
-union FloatBytes {
+union FloatBytes 
+{
     float f;
     uint8_t b[4];
 };
@@ -46,7 +47,8 @@ union FloatBytes {
 ////////////////////////
 
 // MessageID Lookup table
-enum MsgID : uint8_t {
+enum MsgID : uint8_t 
+{
     MSG_CMD_SET     = 0x01,
     MSG_CMD_GET     = 0x02,
     MSG_STATUS      = 0x10,
@@ -56,7 +58,8 @@ enum MsgID : uint8_t {
 };
 
 // NACK error codes
-enum NackError : uint8_t {
+enum NackError : uint8_t 
+{
     ERR_VERSION_MISMATCH = 0x01,
     ERR_BAD_CRC          = 0x02,
     ERR_UNKNOWN_MSG      = 0x03,
@@ -64,7 +67,8 @@ enum NackError : uint8_t {
 };
 
 // Packet representation
-struct Packet {
+struct Packet 
+{
     uint8_t version;
     uint8_t msg_id;
     uint8_t dir;
@@ -74,7 +78,8 @@ struct Packet {
 };
 
 // Serial State Machine Representation
-enum SerialState {
+enum SerialState 
+{
     IDLE,
     READ_HEADER,
     READ_PAYLOAD,
@@ -86,56 +91,57 @@ enum SerialState {
 //*** Class Definition ***//
 ////////////////////////////
 
-class SerialHandler {
-public:
-    // Call on setup
-    void begin(uint32_t baud_rate);
+class SerialHandler 
+{
+    public:
+        // Call on setup
+        void begin(uint32_t baud_rate);
 
-    // Call every loop
-    void update();
+        // Call every loop
+        void update();
 
-    // State of Health Updates
-    void sendParameter(uint8_t parameter_id, float value);
-    void sendStatus(uint8_t status_code);
-    void sendHeartbeat();
+        // State of Health Updates
+        void sendParameter(uint8_t parameter_id, float value);
+        void sendStatus(uint8_t status_code);
+        void sendHeartbeat();
 
-    // Callbacks
-    void onSet(SetCallback cb) { _setCb = cb; }
-    void onGet(GetCallback cb) { _getCb = cb; }
+        // Callbacks
+        void onSet(SetCallback cb) { _setCb = cb; }
+        void onGet(GetCallback cb) { _getCb = cb; }
 
-private:
-    // State machine
-    SerialState _state;
+    private:
+        // State machine
+        SerialState _state;
 
-    // Callbacks
-    SetCallback _setCb = nullptr;
-    GetCallback _getCb = nullptr;
-    
-    // State handler implementations
-    void _handleIdle();
-    void _handleReadHeader();
-    void _handleReadPayload();
-    void _handleValidate();
-    void _handleDispatch();
-    
-    // RX (Incoming data)
-    Packet _rxPacket;
-    uint8_t _rxBuffer[HEADER_SIZE_BYTES + MAX_PAYLOAD_BYTES + 1];
-    uint8_t _bytesRead;
+        // Callbacks
+        SetCallback _setCb = nullptr;
+        GetCallback _getCb = nullptr;
+        
+        // State handler implementations
+        void _handleIdle();
+        void _handleReadHeader();
+        void _handleReadPayload();
+        void _handleValidate();
+        void _handleDispatch();
+        
+        // RX (Incoming data)
+        Packet _rxPacket;
+        uint8_t _rxBuffer[HEADER_SIZE_BYTES + MAX_PAYLOAD_BYTES + 1];
+        uint8_t _bytesRead;
 
-    // TX (Outgoing data)
-    void _sendPacket(uint8_t msg_id, uint8_t dir, const uint8_t* payload, uint8_t len);
-    void _sendACK(uint8_t ack_msg_id);
-    void _sendNACK(uint8_t nack_msg_id, NackError error);
+        // TX (Outgoing data)
+        void _sendPacket(uint8_t msg_id, uint8_t dir, const uint8_t* payload, uint8_t len);
+        void _sendACK(uint8_t ack_msg_id);
+        void _sendNACK(uint8_t nack_msg_id, NackError error);
 
-    void _onCmdSet(const Packet& pkt);
-    void _onCmdGet(const Packet& pkt);
+        void _onCmdSet(const Packet& pkt);
+        void _onCmdGet(const Packet& pkt);
 
-    // CRC
-    uint8_t _computeCRC(const uint8_t* data, uint8_t len);
+        // CRC
+        uint8_t _computeCRC(const uint8_t* data, uint8_t len);
 
-    // Timeout
-    uint32_t _lastByteTime;
+        // Timeout
+        uint32_t _lastByteTime;
 
 };
 

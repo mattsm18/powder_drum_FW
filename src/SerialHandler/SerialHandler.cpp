@@ -4,7 +4,8 @@
 // CORE FUNCTIONALITY & STATE MACHINE
 ///////////////////////////////////////////////////////////////
 
-void SerialHandler::begin(uint32_t baud_rate) {
+void SerialHandler::begin(uint32_t baud_rate) 
+{
     Serial.begin(baud_rate);
     _state        = IDLE;
     _bytesRead    = 0;
@@ -12,7 +13,10 @@ void SerialHandler::begin(uint32_t baud_rate) {
     memset(&_rxPacket, 0, sizeof(_rxPacket));
 }
 
-void SerialHandler::update() {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::update() 
+{
     // Mid-packet timeout guard — reset if we stall between bytes
     if (_state != IDLE && (millis() - _lastByteTime > TIMEOUT_MS)) {
         _state     = IDLE;
@@ -34,7 +38,8 @@ void SerialHandler::update() {
 // STATE HANDLING FUNCTIONS
 ///////////////////////////////////////////////////////////////
 
-void SerialHandler::_handleIdle() {
+void SerialHandler::_handleIdle() 
+{
     // Hunt for SOF byte — discard everything else
     if (Serial.available() < 1) return;
 
@@ -47,7 +52,10 @@ void SerialHandler::_handleIdle() {
     }
 }
 
-void SerialHandler::_handleReadHeader() {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_handleReadHeader() 
+{
     while (Serial.available() && _bytesRead < HEADER_SIZE_BYTES) {
         _rxBuffer[_bytesRead++] = Serial.read();
         _lastByteTime = millis();
@@ -79,7 +87,10 @@ void SerialHandler::_handleReadHeader() {
     _state = (_rxPacket.len > 0) ? READ_PAYLOAD : VALIDATE;
 }
 
-void SerialHandler::_handleReadPayload() {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_handleReadPayload() 
+{
     uint8_t payloadStart = HEADER_SIZE_BYTES;
 
     while (Serial.available() && _bytesRead < HEADER_SIZE_BYTES + _rxPacket.len) {
@@ -94,7 +105,10 @@ void SerialHandler::_handleReadPayload() {
     _state = VALIDATE;
 }
 
-void SerialHandler::_handleValidate() {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_handleValidate() 
+{
     // Wait for the CRC byte
     if (Serial.available() < 1) return;
 
@@ -113,7 +127,10 @@ void SerialHandler::_handleValidate() {
     _state = DISPATCH;
 }
 
-void SerialHandler::_handleDispatch() {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_handleDispatch() 
+{
 
     switch (_rxPacket.msg_id) {
         case MSG_CMD_SET:   _onCmdSet(_rxPacket);   break;
@@ -136,7 +153,8 @@ void SerialHandler::_handleDispatch() {
 // CRC & DISPATCH
 ///////////////////////////////////////////////////////////////
 
-uint8_t SerialHandler::_computeCRC(const uint8_t* data, uint8_t len) {
+uint8_t SerialHandler::_computeCRC(const uint8_t* data, uint8_t len) 
+{
     uint8_t crc = 0x00;
     for (uint8_t i = 0; i < len; i++) {
         crc ^= data[i];
@@ -144,7 +162,10 @@ uint8_t SerialHandler::_computeCRC(const uint8_t* data, uint8_t len) {
     return crc;
 }
 
-void SerialHandler::_sendPacket(uint8_t msg_id, uint8_t dir, const uint8_t* payload, uint8_t len) {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_sendPacket(uint8_t msg_id, uint8_t dir, const uint8_t* payload, uint8_t len) 
+{
 
     uint8_t frame[HEADER_SIZE_BYTES + MAX_PAYLOAD_BYTES];
     frame[0] = SOF_BYTE;
@@ -162,12 +183,18 @@ void SerialHandler::_sendPacket(uint8_t msg_id, uint8_t dir, const uint8_t* payl
     Serial.write(crc);
 }
 
-void SerialHandler::_sendACK(uint8_t ack_msg_id) {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_sendACK(uint8_t ack_msg_id) 
+{
     uint8_t payload[1] = { ack_msg_id };
     _sendPacket(MSG_ACK, DIR_MCU_TO_PC, payload, 1);
 }
 
-void SerialHandler::_sendNACK(uint8_t nack_msg_id, NackError error) {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_sendNACK(uint8_t nack_msg_id, NackError error) 
+{
     uint8_t payload[2] = { nack_msg_id, (uint8_t)error };
     _sendPacket(MSG_NACK, DIR_MCU_TO_PC, payload, 2);
 }
@@ -176,7 +203,8 @@ void SerialHandler::_sendNACK(uint8_t nack_msg_id, NackError error) {
 // PUBLIC API
 ///////////////////////////////////////////////////////////////
 
-void SerialHandler::sendParameter(uint8_t parameter_id, float value) {
+void SerialHandler::sendParameter(uint8_t parameter_id, float value) 
+{
     FloatBytes fb;
     fb.f = value;
 
@@ -185,16 +213,25 @@ void SerialHandler::sendParameter(uint8_t parameter_id, float value) {
     _sendPacket(MSG_CMD_GET, DIR_MCU_TO_PC, payload, 5);
 }
 
-void SerialHandler::sendStatus(uint8_t status_code) {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::sendStatus(uint8_t status_code) 
+{
     uint8_t payload[1] = { status_code };
     _sendPacket(MSG_STATUS, DIR_MCU_TO_PC, payload, 1);
 }
 
-void SerialHandler::sendHeartbeat() {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::sendHeartbeat() 
+{
     _sendPacket(MSG_HEARTBEAT, DIR_MCU_TO_PC, nullptr, 0);
 }
 
-void SerialHandler::_onCmdSet(const Packet& pkt) {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_onCmdSet(const Packet& pkt) 
+{
     if (pkt.len < 5) { _sendNACK(pkt.msg_id, ERR_BAD_LEN); return; }
     if (!_setCb)      { _sendNACK(pkt.msg_id, ERR_UNKNOWN_MSG); return; }
 
@@ -210,10 +247,15 @@ void SerialHandler::_onCmdSet(const Packet& pkt) {
     _sendACK(pkt.msg_id);
 }
 
-void SerialHandler::_onCmdGet(const Packet& pkt) {
+///////////////////////////////////////////////////////////////
+
+void SerialHandler::_onCmdGet(const Packet& pkt) 
+{
     if (pkt.len < 1) { _sendNACK(pkt.msg_id, ERR_BAD_LEN); return; }
     if (!_getCb)     { _sendNACK(pkt.msg_id, ERR_UNKNOWN_MSG); return; }
 
     uint8_t parameter_id = pkt.payload[0];
     sendParameter(parameter_id, _getCb(parameter_id));
 }
+
+///////////////////////////////////////////////////////////////

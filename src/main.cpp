@@ -24,12 +24,6 @@ Purpose:
 #define ENCODER_SAMPLE_RATE_US 5000
 #define ENCODER_EMA_FILTER_TIME_CONST 0.5f // Low-Pass Noise filter
 
-// PI Controller
-#define KP 1.0f
-#define KI 2.0f
-#define INTEGRAL_LIMIT 20   // Stops integral windup
-#define DEADBAND 0.0f       // Helps to limit noise at steady-state
-
 // Serial Comms
 #define SERIAL_BAUD_RATE 115200
 
@@ -40,17 +34,22 @@ void mapSerialParameters();
 // Run
 void runSpeedControl();
 
-//*** Instantiate Objects ***//
-AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
-StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::SIXTEENTH, 200, ISR_FREQ_HZ);
-PIController piController(KP, KI, INTEGRAL_LIMIT, DEADBAND);
-SerialHandler serialComms;
-
 //*** Global Variables ***/
 float setpoint = 0;
 float rampedSetpoint = 0.0f;
 float accelRate = 5.0f;
+float Kp = 1.0f;
+float Ki = 2.0f;
+float integralLimit = 20.0f;
+float deadband = 0.0f;
 
+//*** Instantiate Objects ***//
+AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
+StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::SIXTEENTH, 200, ISR_FREQ_HZ);
+PIController piController(Kp, Ki, integralLimit, deadband);
+SerialHandler serialComms;
+
+//*** Main Program ***/
 void setup() {
 
     // Start Serial Comms
@@ -59,15 +58,14 @@ void setup() {
 
     // Setup ISR to Fire StepperMotor ticks atomically
     setupISR();
-
 }
 
 void loop() {
-    
+
     runSpeedControl();
     serialComms.update();
-}
 
+}
 
 //////////////////////////////////////////////////////////////////////////////////
 // HARDWARE INTERRUPT SERVICE ROUTINE (ISR) -> Fixed clock for motor updates
@@ -101,19 +99,27 @@ void mapSerialParameters()
     // SET — write only
     serialComms.onSet([](uint8_t parameter_id, float value) {
         switch (parameter_id) {
-            case 0x01: setpoint   = value; break;
-            case 0x02: accelRate  = value; break;
+            case 0x01: setpoint         = value; break;
+            case 0x02: accelRate        = value; break;
+            case 0x20: Kp               = value; break;
+            case 0x21: Ki               = value; break;
+            case 0x23: integralLimit    = value; break;
+            case 0x24: deadband         = value; break;
         }
     });
 
-    // GET — read only, version reserved at 0x00
+    // GET — read only
     serialComms.onGet([](uint8_t parameter_id) -> float {
         switch (parameter_id) {
             case 0x00: return SERIAL_PROTOCOL_VERSION;
-            case 0x01: return encoder.getAngularVelocity();
-            case 0x02: return rampedSetpoint;
-            case 0x03: return setpoint;
-            case 0x04: return accelRate;
+            case 0x01: return setpoint;
+            case 0x02: return accelRate;
+            case 0x03: return rampedSetpoint;
+            case 0x10: return encoder.getAngularVelocity();
+            case 0x20: return Kp;
+            case 0x21: return Ki;
+            case 0x23: return integralLimit;
+            case 0x24: return deadband;
             default:   return 0.0f;
         }
     });
