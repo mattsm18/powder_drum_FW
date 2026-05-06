@@ -11,9 +11,10 @@ Purpose:
 */
 
 #include <Arduino.h>
-#include <AS5600.h>         // Encoder Library
-#include <StepperMotor.h>   // StepperMotor Library
-#include <PIController.h>   // PI Controller Libaray
+#include <AS5600.h>                      // Encoder Internal Library
+#include <StepperMotor.h>                // StepperMotor Internal Library
+#include <PIController.h>                // PI Controller Internal Libaray
+#include "SerialHandler/SerialHandler.h" // Serial Comms Implementation
 #include "pins.h"
 
 //*** Definitions ***//
@@ -21,49 +22,50 @@ Purpose:
 // Timing
 #define ISR_FREQ_HZ 20000
 #define ENCODER_SAMPLE_RATE_US 5000
-#define ENCODER_EMA_FILTER_TIME_CONST 0.5f // EMA Low-Pass Noise filter
+#define ENCODER_EMA_FILTER_TIME_CONST 0.5f // Low-Pass Noise filter
 
 // PI Controller
 #define KP 1.0f
 #define KI 2.0f
-#define INTEGRAL_LIMIT 20    // Stops integral windup
+#define INTEGRAL_LIMIT 20   // Stops integral windup
 #define DEADBAND 0.0f       // Helps to limit noise at steady-state
-#define ACCEL_RAMP_RATE 5.0f 
 
 // Serial Comms
 #define SERIAL_BAUD_RATE 115200
-#define SERIAL_LOG_RATE_US 50000
 
-//*** Function Declarations ***//
 // Setup
 void setupISR();
+void mapSerialParameters();
 
+// Run
 void runSpeedControl();
-void runSerialPrinter();
-void runSerialListener();
 
 //*** Instantiate Objects ***//
 AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
 StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::SIXTEENTH, 200, ISR_FREQ_HZ);
 PIController piController(KP, KI, INTEGRAL_LIMIT, DEADBAND);
+SerialHandler serialComms;
 
 //*** Global Variables ***/
 float setpoint = 0;
 float rampedSetpoint = 0.0f;
+float accelRate = 5.0f;
 
 void setup() {
 
-  Serial.begin(SERIAL_BAUD_RATE);
-  setupISR();
+    // Start Serial Comms
+    serialComms.begin(SERIAL_BAUD_RATE);
+    mapSerialParameters();
+
+    // Setup ISR to Fire StepperMotor ticks atomically
+    setupISR();
 
 }
 
 void loop() {
-
-    runSpeedControl();
-    runSerialPrinter();
-    runSerialListener();
     
+    runSpeedControl();
+    serialComms.update();
 }
 
 
@@ -91,6 +93,33 @@ ISR(TCB0_INT_vect)
 }
 
 //////////////////////////////////////////////////////////////////////////////////
+// Plumb Serial Parameters to corrosponding data and/or functions
+//////////////////////////////////////////////////////////////////////////////////
+
+void mapSerialParameters()
+{
+    // SET — write only
+    serialComms.onSet([](uint8_t parameter_id, float value) {
+        switch (parameter_id) {
+            case 0x01: setpoint   = value; break;
+            case 0x02: accelRate  = value; break;
+        }
+    });
+
+    // GET — read only, version reserved at 0x00
+    serialComms.onGet([](uint8_t parameter_id) -> float {
+        switch (parameter_id) {
+            case 0x00: return SERIAL_PROTOCOL_VERSION;
+            case 0x01: return encoder.getAngularVelocity();
+            case 0x02: return rampedSetpoint;
+            case 0x03: return setpoint;
+            case 0x04: return accelRate;
+            default:   return 0.0f;
+        }
+    });
+}
+
+//////////////////////////////////////////////////////////////////////////////////
 // Motor Speed Control Handler -> Plumb closed-loop feedback
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -108,38 +137,11 @@ void runSpeedControl()
 
     // Ramp commanded setpoint toward target
     float delta = setpoint - rampedSetpoint;
-    float maxStep = ACCEL_RAMP_RATE * dt;
+    float maxStep = accelRate * dt;
     rampedSetpoint += constrain(delta, -maxStep, maxStep);
 
     // PI tracks the ramp, not the target directly
     float error = rampedSetpoint - (-encoder.getAngularVelocity());
     float output = piController.update(error, dt);
     motor.setAngularVelocity(output);
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// Serial Comms Handlers -> Listens to incoming packets, send response packets
-//////////////////////////////////////////////////////////////////////////////////
-
-void runSerialPrinter()
-{
-    static uint32_t lastPrint = 0;
-    if (micros() - lastPrint >= SERIAL_LOG_RATE_US) {
-        lastPrint += SERIAL_LOG_RATE_US;
-        Serial.print(setpoint);
-        Serial.print(",");
-        Serial.print(rampedSetpoint);
-        Serial.print(",");
-        Serial.println(-encoder.getAngularVelocity());
-    }
-}
-
-void runSerialListener()
-{
-    // Return if not available
-    if(!Serial.available()) return;
-
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    if (input.length() > 0) setpoint = input.toFloat();
 }

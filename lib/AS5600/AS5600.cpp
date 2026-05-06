@@ -72,7 +72,7 @@ void AS5600::update()
     // Get angle as filtered angle from AS5600
     uint16_t angle = readFilteredAngleReg();
 
-    // exit on stale data
+    // exit on stale data -- arbitrary....
     if (angle == _lastAngle) { return; } 
 
     // Solve for dt (change in time)
@@ -91,8 +91,8 @@ void AS5600::update()
     // calculate Angular Velocity
     float angularVelocityRaw = d_theta / dt;
 
-    // Apply Exponential Moving Average Filter (Low-Pass Filter)
-    float alpha = dt / (_EMATimeConst + dt);
+    // Apply 1st order discrete-time filter (Low-Pass Filter)
+    float alpha = dt / (_EMATimeConst + dt); // BAD - remove from loop
     _angularVelocity = alpha * angularVelocityRaw + (1.0f - alpha) * _angularVelocity;
     _thetaPrev = theta;
 }
