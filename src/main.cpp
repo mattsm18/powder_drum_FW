@@ -147,7 +147,7 @@ void runSpeedControl()
     rampedSetpoint += constrain(delta, -maxStep, maxStep);
 
     // PI tracks the ramp, not the target directly
-    float error = rampedSetpoint - (-encoder.getAngularVelocity());
+    float error = rampedSetpoint - encoder.getAngularVelocity();
     float output = piController.update(error, dt);
     motor.setAngularVelocity(output);
 }

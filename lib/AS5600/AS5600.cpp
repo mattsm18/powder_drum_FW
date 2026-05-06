@@ -106,4 +106,4 @@ uint16_t AS5600::readAngleReg()         { return readRegister16(0x0C); }
 uint16_t AS5600::readFilteredAngleReg() { return readRegister16(0x0E); }
 float AS5600::getAngleDegrees()         { return readFilteredAngleReg() * 360.0 / 4096.0; }
 float AS5600::getAngleRadians()         { return readFilteredAngleReg() * (2.0f * M_PI) / 4096.0f; }
-float AS5600::getAngularVelocity()      { return _angularVelocity; }
+float AS5600::getAngularVelocity()      { return -_angularVelocity; } // negative direction to match stepper direction convention
