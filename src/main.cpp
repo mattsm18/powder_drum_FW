@@ -27,6 +27,11 @@ Purpose:
 // Serial Comms
 #define SERIAL_BAUD_RATE 115200
 
+// Default Controller
+#define KP 1.0f
+#define KI 2.0f
+#define INTEGRAL_LIMIT 20.0f
+#define DEADBAND 0.0f
 // Setup
 void setupISR();
 void mapSerialParameters();
@@ -38,15 +43,12 @@ void runSpeedControl();
 float setpoint = 0;
 float rampedSetpoint = 0.0f;
 float accelRate = 5.0f;
-float Kp = 1.0f;
-float Ki = 2.0f;
-float integralLimit = 20.0f;
-float deadband = 0.0f;
+float lightState = 255.0f; //0 = off, anything > 0 = on
 
 //*** Instantiate Objects ***//
 AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
 StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::SIXTEENTH, 200, ISR_FREQ_HZ);
-PIController piController(Kp, Ki, integralLimit, deadband);
+PIController controller(KP, KI, INTEGRAL_LIMIT, DEADBAND);
 SerialHandler serialComms;
 
 //*** Main Program ***/
@@ -54,7 +56,10 @@ void setup() {
 
     // Start Serial Comms
     serialComms.begin(SERIAL_BAUD_RATE);
-    mapSerialParameters();
+    mapSerialParameters(); 
+
+    // Setup light relay pin
+    pinMode(LED_PANEL_RELAY_PIN, OUTPUT);
 
     // Setup ISR to Fire StepperMotor ticks atomically
     setupISR();
@@ -65,6 +70,8 @@ void loop() {
     runSpeedControl();
     serialComms.update();
 
+    // Update the light relay
+    (lightState > 0) ? digitalWrite(LED_PANEL_RELAY_PIN, HIGH) : digitalWrite(LED_PANEL_RELAY_PIN, LOW);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -99,12 +106,13 @@ void mapSerialParameters()
     // SET — write only
     serialComms.onSet([](uint8_t parameter_id, float value) {
         switch (parameter_id) {
-            case 0x01: setpoint         = value; break;
-            case 0x02: accelRate        = value; break;
-            case 0x20: Kp               = value; break;
-            case 0x21: Ki               = value; break;
-            case 0x23: integralLimit    = value; break;
-            case 0x24: deadband         = value; break;
+            case 0x01: setpoint = value;                    break;
+            case 0x02: accelRate = value;                   break;
+            case 0x20: controller.setKp(value);             break;
+            case 0x21: controller.setKi(value);             break;
+            case 0x23: controller.setIntegralLimit(value);  break;
+            case 0x24: controller.setDeadband(value);       break;
+            case 0x30: lightState = value;                  break;
         }
     });
 
@@ -116,10 +124,11 @@ void mapSerialParameters()
             case 0x02: return accelRate;
             case 0x03: return rampedSetpoint;
             case 0x10: return encoder.getAngularVelocity();
-            case 0x20: return Kp;
-            case 0x21: return Ki;
-            case 0x23: return integralLimit;
-            case 0x24: return deadband;
+            case 0x20: return controller.getKp();
+            case 0x21: return controller.getKi();
+            case 0x23: return controller.getIntegralLimit();
+            case 0x24: return controller.getDeadband();
+            case 0x30: return lightState;
             default:   return 0.0f;
         }
     });
@@ -148,6 +157,6 @@ void runSpeedControl()
 
     // PI tracks the ramp, not the target directly
     float error = rampedSetpoint - encoder.getAngularVelocity();
-    float output = piController.update(error, dt);
+    float output = controller.update(error, dt);
     motor.setAngularVelocity(output);
 }

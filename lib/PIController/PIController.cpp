@@ -39,3 +39,8 @@ float PIController::update(float error, float dt) {
 }
 
 void PIController::reset() { _integral = 0.0f; }
+
+void PIController::setKp(float kP) { _kP = kP; }
+void PIController::setKi(float kI) { _kI = kI; }
+void PIController::setIntegralLimit(float intLimit) { _integralLimit = intLimit; }
+void PIController::setDeadband(float deadband) { _deadband = deadband; }
