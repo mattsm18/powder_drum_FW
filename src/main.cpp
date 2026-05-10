@@ -20,7 +20,7 @@ Purpose:
 //*** Definitions ***//
 
 // Timing
-#define ISR_FREQ_HZ 20000
+#define ISR_FREQ_HZ 32000
 #define ENCODER_SAMPLE_RATE_US 5000
 #define ENCODER_EMA_FILTER_TIME_CONST 0.5f // Low-Pass Noise filter
 
@@ -32,6 +32,7 @@ Purpose:
 #define KI 2.0f
 #define INTEGRAL_LIMIT 20.0f
 #define DEADBAND 0.0f
+
 // Setup
 void setupISR();
 void mapSerialParameters();
@@ -47,7 +48,7 @@ float lightState = 255.0f; //0 = off, anything > 0 = on
 
 //*** Instantiate Objects ***//
 AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
-StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::SIXTEENTH, 200, ISR_FREQ_HZ);
+StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ);
 PIController controller(KP, KI, INTEGRAL_LIMIT, DEADBAND);
 SerialHandler serialComms;
 
