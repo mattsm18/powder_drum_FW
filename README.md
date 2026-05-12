@@ -40,6 +40,9 @@ Potential for future, more capable targets due to using the PlatformIO framework
 # Dependencies
 - Use of the PlatformIO extension in VSCode for compiling, running and debugging code
 
+# System Diagram
+![alt text](https://github.com/mattsm18/powder_drum_FW/blob/main/docs/system_diagram.png "System")
+
 # Serial Comms Protocol
 The powder drum implements a custom bi-directional serial comms protocol in 
 the firmware and the software
