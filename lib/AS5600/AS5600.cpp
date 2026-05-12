@@ -92,7 +92,7 @@ void AS5600::update()
     float angularVelocityRaw = d_theta / dt;
 
     // Apply 1st order discrete-time filter (Low-Pass Filter)
-    float alpha = dt / (_EMATimeConst + dt); // BAD - remove from loop
+    float alpha = dt / (_EMATimeConst + dt); // BAD - remove from loop constant...
     _angularVelocity = alpha * angularVelocityRaw + (1.0f - alpha) * _angularVelocity;
     _thetaPrev = theta;
 }
