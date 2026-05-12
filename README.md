@@ -37,4 +37,4 @@ This protocol includes ACKs, NACKs and a XOR CRC checksum to validate data integ
 
 Fully implemented in the firmware, some work still to do for ACK and NACK handling in the software.
 
-![alt text](https://github.com/mattsm18/powder_drum_FW/blob/master/docs/serial_protocol.png "Custom Serial Protocol")
+![alt text](https://github.com/mattsm18/powder_drum_FW/blob/main/docs/serial_protocol.png "Custom Serial Protocol")
