@@ -2,6 +2,17 @@
 
 Firmware for ENME891 - Industrial Project
 
+# About
+
+ENME891 is the capstone paper for the BE(Hons) degree at AUT. It is a year-long industrial project where students develop a real-world engineering solution.
+
+### Project name: 
+<b>Quanitfying the flowability of milk powders through the use of computer vision </b>
+
+### Project members / responsibilities:
+- Matthew Smith -> Embedded Firmware and Software Development, Electronic Design, on-device computer vision development
+- Josh Russell -> Mechanical design and build, MATLAB Computer vision models
+
 # Target
 ### Arduino Nano Every 
 Potential for future, more capable targets due to using the PlatformIO framework
