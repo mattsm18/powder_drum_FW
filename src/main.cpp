@@ -22,7 +22,7 @@ Purpose:
 // Timing
 #define ISR_FREQ_HZ 32000
 #define ENCODER_SAMPLE_RATE_US 5000
-#define ENCODER_EMA_FILTER_TIME_CONST 0.5f // Low-Pass Noise filter
+#define ENCODER_FILTER_TIME_CONST 0.5f // Low-Pass Noise filter
 
 // Serial Comms
 #define SERIAL_BAUD_RATE 115200
@@ -47,7 +47,7 @@ float accelRate = 5.0f;
 float lightState = 255.0f; //0 = off, anything > 0 = on
 
 //*** Instantiate Objects ***//
-AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_EMA_FILTER_TIME_CONST);
+AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_FILTER_TIME_CONST);
 StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ);
 PIController controller(KP, KI, INTEGRAL_LIMIT, DEADBAND);
 SerialHandler serialComms;
