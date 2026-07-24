@@ -10,11 +10,18 @@ Purpose:
 
 */
 
-// TB6600 Stepper Motor Driver
-#define DRIVER_DIR_PIN 10
-#define DRIVER_STEP_PIN 12
+// TB6600 A
+#define TB6600_DRIVER_A_ENA 9
+#define TB6600_DRIVER_A_PUL 8
+#define TB6600_DRIVER_A_DIR 7
 
-// 5V Relay Module (For 12V LED control)
-#define LED_PANEL_RELAY_PIN 2
+// TB6600 B
+#define TB6600_DRIVER_B_ENA 6
+#define TB6600_DRIVER_B_PUL 5
+#define TB6600_DRIVER_B_DIR 4
+
+// Relay Outputs
+#define RELAY_OUTPUT_A 3
+#define RELAY_OUTPUT_B 2
 
 #endif

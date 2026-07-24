@@ -9,9 +9,6 @@ Purpose:
 
 #include "PIController.h"
 
-// Bumpless transfer
-// 
-
 PIController::PIController
     (
         float kP, 
@@ -23,8 +20,8 @@ PIController::PIController
         _kP(kP), 
         _kI(kI), 
         _integralLimit(integralLimit),
-        _deadband(deadband), 
-        _integral(0.0f) 
+        _integral(0.0f),
+        _deadband(deadband)
     {}
 
 // Accumulate integral with anti-windup clamp

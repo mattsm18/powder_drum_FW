@@ -19,16 +19,16 @@ public:
     void reset();
 
     // Setters
-    void PIController::setKp(float kP);
-    void PIController::setKi(float kI);
-    void PIController::setIntegralLimit(float intLimit);
-    void PIController::setDeadband(float deadband);
+    void setKp(float kP);
+    void setKi(float kI);
+    void setIntegralLimit(float intLimit);
+    void setDeadband(float deadband);
 
     // Getters
-    float PIController::getKp()             { return _kP; }
-    float PIController::getKi()             { return _kI; }
-    float PIController::getIntegralLimit()  { return _integralLimit; }
-    float PIController::getDeadband()       { return _deadband; }
+    float getKp()             { return _kP; }
+    float getKi()             { return _kI; }
+    float getIntegralLimit()  { return _integralLimit; }
+    float getDeadband()       { return _deadband; }
 
 private:
     float _kP;
@@ -37,6 +37,5 @@ private:
     float _integral;
     float _deadband;
 };
-
 
 #endif

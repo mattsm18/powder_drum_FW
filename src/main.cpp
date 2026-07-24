@@ -1,4 +1,3 @@
-
 /*
 Title: main.cpp
 Author: Matthew Smith
@@ -48,8 +47,15 @@ float lightState = 255.0f; //0 = off, anything > 0 = on
 
 //*** Instantiate Objects ***//
 AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_FILTER_TIME_CONST);
-StepperMotor motor(DRIVER_STEP_PIN, DRIVER_DIR_PIN, Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ);
+
+StepperMotor motorA(
+    TB6600_DRIVER_A_PUL, TB6600_DRIVER_A_DIR, TB6600_DRIVER_A_ENA, 
+    Microstep::THIRTY_SECOND, 200, 
+    ISR_FREQ_HZ
+);
+
 PIController controller(KP, KI, INTEGRAL_LIMIT, DEADBAND);
+
 SerialHandler serialComms;
 
 //*** Main Program ***/
@@ -60,19 +66,30 @@ void setup() {
     mapSerialParameters(); 
 
     // Setup light relay pin
-    pinMode(LED_PANEL_RELAY_PIN, OUTPUT);
+    pinMode(RELAY_OUTPUT_B, OUTPUT);
 
     // Setup ISR to Fire StepperMotor ticks atomically
     setupISR();
+    
+    motorA.enable();
 }
 
 void loop() {
+    motorA.setAngularVelocity(20.0);
+    delay(1000);
+    motorA.setAngularVelocity(0.0);
+    delay(1000);
+    motorA.setAngularVelocity(-20.0);
+    delay(1000);
+    motorA.disable();
+    delay(1000);
+    motorA.enable();
 
-    runSpeedControl();
-    serialComms.update();
+    //runSpeedControl();
+    //serialComms.update();
 
     // Update the light relay
-    (lightState > 0) ? digitalWrite(LED_PANEL_RELAY_PIN, HIGH) : digitalWrite(LED_PANEL_RELAY_PIN, LOW);
+    //(lightState > 0) ? digitalWrite(RELAY_OUTPUT_B, HIGH) : digitalWrite(RELAY_OUTPUT_B, LOW);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -80,22 +97,23 @@ void loop() {
 //////////////////////////////////////////////////////////////////////////////////
 
 // Setup function for Hardware interrupts, used to drive StepperMotors atomically
+// Uses Timer1 (16-bit) in CTC mode, no prescaling.
+// OCR1A = (F_CPU / ISR_FREQ_HZ) - 1 must be <= 65535 to fit in the 16-bit register.
 void setupISR() 
 {
     cli();
-    TCB0.CTRLA   = 0;
-    TCB0.CTRLB   = TCB_CNTMODE_INT_gc;
-    TCB0.CCMP = (F_CPU / ISR_FREQ_HZ) - 1;
-    TCB0.INTCTRL = TCB_CAPT_bm;
-    TCB0.CTRLA   = TCB_ENABLE_bm | TCB_CLKSEL_CLKDIV1_gc;
+    TCCR1A = 0;                          // Normal port operation, CTC handled via TCCR1B
+    TCCR1B = (1 << WGM12);                // CTC mode (OCR1A as TOP)
+    OCR1A  = (F_CPU / ISR_FREQ_HZ) - 1;   // Compare match value
+    TIMSK1 = (1 << OCIE1A);               // Enable Timer1 Compare A interrupt
+    TCCR1B |= (1 << CS10);                // Start timer, no prescaling (clk/1)
     sei();
 }
 
 // Attach ISR to StepperMotor step function
-ISR(TCB0_INT_vect) 
+ISR(TIMER1_COMPA_vect) 
 {
-    motor.tick();
-    TCB0.INTFLAGS = TCB_CAPT_bm;
+    motorA.tick();
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -159,5 +177,5 @@ void runSpeedControl()
     // PI tracks the ramp, not the target directly
     float error = rampedSetpoint - encoder.getAngularVelocity();
     float output = controller.update(error, dt);
-    motor.setAngularVelocity(output);
+    motorA.setAngularVelocity(output);
 }

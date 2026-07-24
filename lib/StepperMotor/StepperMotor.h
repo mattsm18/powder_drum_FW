@@ -1,66 +1,64 @@
-/*
-Title: StepperMotor
-Author: Matthew Smith
-Date: 1/05/26
-Purpose:
-- Wrap StepperMotor driving functionality into a class
-- Provide smooth, time-accurate stepping and speed control
-- Allow dynamic microstepping rates
-
-*/
-
-#ifndef STEPPERMOTOR_H
-#define STEPPERMOTOR_H
-
+// StepperMotor.h
+#pragma once
 #include <Arduino.h>
+#include <stdint.h>
 
-// Enumerations
-enum Direction { CW = 0, CCW = 1 };
-enum Microstep { FULL = 1, HALF = 2, QUARTER = 4, EIGHTH = 8, SIXTEENTH = 16, THIRTY_SECOND = 32 };
-
-// Class definition
-class StepperMotor {
-public:
-    //*** Constructor ***/
-    StepperMotor
-    (
-        uint8_t stepPin, 
-        uint8_t dirPin,
-        Microstep microstep = FULL,
-        uint8_t stepsPerRev = 200,
-        uint32_t isrFreq = 20000
-    );
-
-    // Accessors
-    float getAngularVelocity() const;
-
-    // Methods
-    void setAngularVelocity(float radsPerSec);
-    static void tick();
-
-private:
-    static StepperMotor* _instance;
-
-    // Hardware
-    uint8_t _stepPin;
-    uint8_t _dirPin;
-
-    // Timing
-    const uint16_t _stepsPerRev;
-    const uint32_t _isrFreq;
-
-    // Motion
-    volatile float _angularVelocity = 0.0f;
-    volatile float _phase = 0.0f;
-    volatile float _phaseIncrement = 0.0f;
-
-    // Pulse state machine
-    volatile bool _stepHigh = false;
-
-    Direction _direction = CW;
-
-    void updateStepTiming();
-    void stepIfDue();
+enum class Microstep : uint8_t {
+    FULL       = 1,
+    HALF       = 2,
+    QUARTER    = 4,
+    EIGHTH     = 8,
+    SIXTEENTH  = 16,
+    THIRTY_SECOND = 32
 };
 
-#endif
+class StepperMotor {
+public:
+
+    StepperMotor
+    (
+        uint8_t pulPin, uint8_t dirPin, uint8_t enaPin,
+        Microstep microstep, uint16_t fullStepsPerRev,
+        uint32_t tickFreqHz
+    );
+
+    void enable();
+    void disable();
+    bool isEnabled() const { return _enabled; }
+
+    // --- Velocity control ---
+    void setAngularVelocity(float radPerSec);
+    float getCommandedVelocity() const { return _commandedVelRadS; }
+
+    // --- ISR-side ---
+    static void tickAll();   // call this from your hardware ISR
+    void tick();             // per-instance tick, called by tickAll()
+
+private:
+    void applyStepRate(float radPerSec);
+
+    // Pins
+    uint8_t _pulPin, _dirPin, _enaPin;
+
+    // Geometry
+    uint16_t _fullStepsPerRev;
+    Microstep _microstep;
+    uint32_t _microstepsPerRev;
+
+    // Timing
+    uint32_t _tickFreqHz;
+
+    // State
+    volatile bool _enabled = false;
+    volatile int8_t _direction = 1;          // +1 / -1
+    volatile float _commandedVelRadS = 0.0f;
+
+    // Phase accumulator (Q32 fixed point, wraps naturally on overflow)
+    volatile uint32_t _accumulator = 0;
+    volatile uint32_t _accumulatorStep = 0;  // added every tick
+
+    // Registry for multi-instance ISR dispatch
+    static constexpr uint8_t MAX_INSTANCES = 4;
+    static StepperMotor* _instances[MAX_INSTANCES];
+    static uint8_t _instanceCount;
+};
