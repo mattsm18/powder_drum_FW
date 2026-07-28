@@ -75,15 +75,7 @@ void setup() {
 }
 
 void loop() {
-    motorA.setAngularVelocity(20.0);
-    delay(1000);
-    motorA.setAngularVelocity(0.0);
-    delay(1000);
-    motorA.setAngularVelocity(-20.0);
-    delay(1000);
-    motorA.disable();
-    delay(1000);
-    motorA.enable();
+    motorA.setAngularVelocity(30.0);
 
     //runSpeedControl();
     //serialComms.update();

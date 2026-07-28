@@ -7,14 +7,14 @@ uint8_t StepperMotor::_instanceCount = 0;
 StepperMotor::StepperMotor
 (
     uint8_t pulPin, uint8_t dirPin, uint8_t enaPin,
-    Microstep microstep, uint16_t fullStepsPerRev,
+    Microstep microstep, uint16_t stepsPerRev,
     uint32_t tickFreqHz
 ): 
     _pulPin(pulPin), _dirPin(dirPin), _enaPin(enaPin),
-    _fullStepsPerRev(fullStepsPerRev), _microstep(microstep),
+    _stepsPerRev(stepsPerRev), _microstep(microstep),
      _tickFreqHz(tickFreqHz)
 {
-    _microstepsPerRev = (uint32_t)_fullStepsPerRev * (uint8_t)_microstep;
+    _microstepsPerRev = (uint32_t)_stepsPerRev * (uint8_t)_microstep;
 
     pinMode(_pulPin, OUTPUT);
     pinMode(_dirPin, OUTPUT);
@@ -46,7 +46,7 @@ void StepperMotor::setAngularVelocity(float radPerSec) { applyStepRate(radPerSec
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 void StepperMotor::applyStepRate(float radPerSec) {
-    _commandedVelRadS = radPerSec;
+    _setpointVelocity = radPerSec;
     _direction = (radPerSec >= 0.0f) ? 1 : -1;
     digitalWrite(_dirPin, _direction > 0 ? HIGH : LOW);
 

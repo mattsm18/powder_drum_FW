@@ -18,7 +18,7 @@ public:
     StepperMotor
     (
         uint8_t pulPin, uint8_t dirPin, uint8_t enaPin,
-        Microstep microstep, uint16_t fullStepsPerRev,
+        Microstep microstep, uint16_t stepsPerRev,
         uint32_t tickFreqHz
     );
 
@@ -28,7 +28,7 @@ public:
 
     // --- Velocity control ---
     void setAngularVelocity(float radPerSec);
-    float getCommandedVelocity() const { return _commandedVelRadS; }
+    float getAngularVelocity() const { return _setpointVelocity; }
 
     // --- ISR-side ---
     static void tickAll();   // call this from your hardware ISR
@@ -41,7 +41,7 @@ private:
     uint8_t _pulPin, _dirPin, _enaPin;
 
     // Geometry
-    uint16_t _fullStepsPerRev;
+    uint16_t _stepsPerRev;
     Microstep _microstep;
     uint32_t _microstepsPerRev;
 
@@ -51,7 +51,7 @@ private:
     // State
     volatile bool _enabled = false;
     volatile int8_t _direction = 1;          // +1 / -1
-    volatile float _commandedVelRadS = 0.0f;
+    volatile float _setpointVelocity = 0.0f;
 
     // Phase accumulator (Q32 fixed point, wraps naturally on overflow)
     volatile uint32_t _accumulator = 0;
