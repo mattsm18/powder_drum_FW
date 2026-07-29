@@ -15,7 +15,7 @@ Purpose:
 #include <StepperMotor.h>                // StepperMotor Internal Library
 #include <PIDController.h>               // PI Controller Internal Libaray
 
-#include "CommsManager/SerialManager.h"  // Serial Comms Implementation
+#include "Communication/CommsManager.h"  // Serial Comms Implementation
 #include "pins.h"
 
 //*** Definitions ***//
