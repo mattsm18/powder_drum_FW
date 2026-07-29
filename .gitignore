@@ -1,3 +1,4 @@
 .pio
+.venv
 test/python_scripts/build
 .vscode
