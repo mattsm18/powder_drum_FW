@@ -12,7 +12,7 @@ StepperMotor::StepperMotor
 ): 
     _pulPin(pulPin), _dirPin(dirPin), _enaPin(enaPin),
     _stepsPerRev(stepsPerRev), _microstep(microstep),
-     _tickFreqHz(tickFreqHz)
+    _tickFreqHz(tickFreqHz)
 {
     _microstepsPerRev = (uint32_t)_stepsPerRev * (uint8_t)_microstep;
 

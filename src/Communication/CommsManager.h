@@ -13,8 +13,8 @@ SIZE (BYTES):  |  1  |    1    |   1    |  1  |  1  |  0-255  |    1    |
 */
 
 
-#ifndef SERIALHANDLER_H
-#define SERIALHANDLER_H
+#ifndef SERIALMANAGER_H
+#define SERIALMANAGER_H
 
 #include <Arduino.h>
 

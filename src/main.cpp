@@ -8,29 +8,23 @@ Purpose:
 -  Pass relevant data between objects
 
 */
+#include <avr/interrupt.h>
 
 #include <Arduino.h>
 #include <AS5600.h>                      // Encoder Internal Library
 #include <StepperMotor.h>                // StepperMotor Internal Library
-#include <PIController.h>                // PI Controller Internal Libaray
-#include "SerialHandler/SerialHandler.h" // Serial Comms Implementation
+#include <PIDController.h>               // PI Controller Internal Libaray
+
+#include "CommsManager/SerialManager.h"  // Serial Comms Implementation
 #include "pins.h"
 
 //*** Definitions ***//
 
 // Timing
 #define ISR_FREQ_HZ 32000
-#define ENCODER_SAMPLE_RATE_US 5000
-#define ENCODER_FILTER_TIME_CONST 0.5f // Low-Pass Noise filter
 
 // Serial Comms
 #define SERIAL_BAUD_RATE 115200
-
-// Default Controller
-#define KP 1.0f
-#define KI 2.0f
-#define INTEGRAL_LIMIT 20.0f
-#define DEADBAND 0.0f
 
 // Setup
 void setupISR();
@@ -46,15 +40,18 @@ float accelRate = 5.0f;
 float lightState = 255.0f; //0 = off, anything > 0 = on
 
 //*** Instantiate Objects ***//
-AS5600 encoder(ENCODER_SAMPLE_RATE_US, ENCODER_FILTER_TIME_CONST);
+AS5600 encoderA;
 
 StepperMotor motorA(
     TB6600_DRIVER_A_PUL, TB6600_DRIVER_A_DIR, TB6600_DRIVER_A_ENA, 
-    Microstep::THIRTY_SECOND, 200, 
-    ISR_FREQ_HZ
+    Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ
 );
 
-PIController controller(KP, KI, INTEGRAL_LIMIT, DEADBAND);
+#define KP 1.0
+#define KI 2.0
+#define KD 0.5
+
+PIDController controller(KP, KI, KD);
 
 SerialHandler serialComms;
 
@@ -75,7 +72,7 @@ void setup() {
 }
 
 void loop() {
-    motorA.setAngularVelocity(30.0);
+    motorA.setAngularVelocity(10.0);
 
     //runSpeedControl();
     //serialComms.update();
@@ -89,23 +86,21 @@ void loop() {
 //////////////////////////////////////////////////////////////////////////////////
 
 // Setup function for Hardware interrupts, used to drive StepperMotors atomically
-// Uses Timer1 (16-bit) in CTC mode, no prescaling.
-// OCR1A = (F_CPU / ISR_FREQ_HZ) - 1 must be <= 65535 to fit in the 16-bit register.
 void setupISR() 
 {
     cli();
-    TCCR1A = 0;                          // Normal port operation, CTC handled via TCCR1B
-    TCCR1B = (1 << WGM12);                // CTC mode (OCR1A as TOP)
-    OCR1A  = (F_CPU / ISR_FREQ_HZ) - 1;   // Compare match value
-    TIMSK1 = (1 << OCIE1A);               // Enable Timer1 Compare A interrupt
-    TCCR1B |= (1 << CS10);                // Start timer, no prescaling (clk/1)
+    TCB0.CTRLB   = TCB_CNTMODE_INT_gc;               // Periodic interrupt mode (CTC-equivalent)
+    TCB0.CCMP    = (F_CPU / ISR_FREQ_HZ) - 1;         // Period/compare value
+    TCB0.INTCTRL = TCB_CAPT_bm;                       // Enable compare/capture interrupt
+    TCB0.CTRLA   = TCB_CLKSEL_CLKDIV1_gc | TCB_ENABLE_bm; // Start timer, no prescale (clk/1)
     sei();
 }
 
 // Attach ISR to StepperMotor step function
-ISR(TIMER1_COMPA_vect) 
+ISR(TCB0_INT_vect) 
 {
     motorA.tick();
+    TCB0.INTFLAGS = TCB_CAPT_bm;   // Must clear flag manually — write-1-to-clear
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -121,8 +116,7 @@ void mapSerialParameters()
             case 0x02: accelRate = value;                   break;
             case 0x20: controller.setKp(value);             break;
             case 0x21: controller.setKi(value);             break;
-            case 0x23: controller.setIntegralLimit(value);  break;
-            case 0x24: controller.setDeadband(value);       break;
+            case 0x22: controller.setKd(value);             break;
             case 0x30: lightState = value;                  break;
         }
     });
@@ -134,40 +128,11 @@ void mapSerialParameters()
             case 0x01: return setpoint;
             case 0x02: return accelRate;
             case 0x03: return rampedSetpoint;
-            case 0x10: return encoder.getAngularVelocity();
             case 0x20: return controller.getKp();
             case 0x21: return controller.getKi();
-            case 0x23: return controller.getIntegralLimit();
-            case 0x24: return controller.getDeadband();
+            case 0x22: return controller.getKd();
             case 0x30: return lightState;
             default:   return 0.0f;
         }
     });
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// Motor Speed Control Handler -> Plumb closed-loop feedback
-//////////////////////////////////////////////////////////////////////////////////
-
-void runSpeedControl()
-{
-    encoder.update();
-
-    static uint32_t lastTime = 0;
-    uint32_t now = micros();
-
-    if (lastTime == 0) { lastTime = now; return; }
-
-    float dt = (now - lastTime) / 1000000.0f;
-    lastTime = now;
-
-    // Ramp commanded setpoint toward target
-    float delta = setpoint - rampedSetpoint;
-    float maxStep = accelRate * dt;
-    rampedSetpoint += constrain(delta, -maxStep, maxStep);
-
-    // PI tracks the ramp, not the target directly
-    float error = rampedSetpoint - encoder.getAngularVelocity();
-    float output = controller.update(error, dt);
-    motorA.setAngularVelocity(output);
 }

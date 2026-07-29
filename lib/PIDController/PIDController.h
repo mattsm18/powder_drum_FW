@@ -3,15 +3,14 @@
 
 #include "Arduino.h"
 
-class PIController {
+class PIDController {
 public:
     //*** Constructor ***/
-    PIController
+    PIDController
     (
         float kP, 
         float kI, 
-        float integralLimit,
-        float deadband
+        float kDq
     );
 
     //*** Methods ***/
@@ -21,21 +20,19 @@ public:
     // Setters
     void setKp(float kP);
     void setKi(float kI);
-    void setIntegralLimit(float intLimit);
-    void setDeadband(float deadband);
+    void setKd(float kD);
 
     // Getters
     float getKp()             { return _kP; }
     float getKi()             { return _kI; }
-    float getIntegralLimit()  { return _integralLimit; }
-    float getDeadband()       { return _deadband; }
+    float getKd()             { return _kD; }
 
 private:
     float _kP;
     float _kI;
-    float _integralLimit;
+    float _kD;
     float _integral;
-    float _deadband;
+    float _prevError;
 };
 
 #endif
