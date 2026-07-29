@@ -1,6 +1,6 @@
 // ============================================================
 // AUTO-GENERATED FILE — DO NOT EDIT BY HAND
-// Source:    config/pd_comms_protocol_v1.0.json (protocol v1.0)
+// Source:    config\pd_comms_protocol_v1.1.json (protocol v1.1)
 // Generator: scripts/generate_protocol.py
 // Regenerate with: python scripts/generate_protocol.py
 // ============================================================
@@ -13,7 +13,7 @@
 
 // ---- Frame constants ----
 #define SOF_BYTE                    0xAA
-#define SERIAL_PROTOCOL_VERSION     0x01
+#define SERIAL_PROTOCOL_VERSION     0x02
 #define HEADER_SIZE_BYTES           5
 #define MAX_PAYLOAD_BYTES           255
 #define TIMEOUT_MS                  100
@@ -65,8 +65,7 @@ namespace ParamID {
     constexpr uint8_t ENCODERANGULARVELOCITY     = 0x10; // Angular Velocity rad/s [motor]  (read-only)
     constexpr uint8_t KP                         = 0x20; // Kp [motor]
     constexpr uint8_t KI                         = 0x21; // Ki [motor]
-    constexpr uint8_t INTEGRALLIMIT              = 0x23; // Integral Limit [motor]
-    constexpr uint8_t DEADBAND                   = 0x24; // Deadband rad/s [motor]
+    constexpr uint8_t KD                         = 0x22; // Kd [motor]
     constexpr uint8_t LIGHTS                     = 0x30; // Lights [io]
 }
 
@@ -88,8 +87,7 @@ const ParamMeta PARAM_TABLE[] PROGMEM = {
     { ParamID::ENCODERANGULARVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
     { ParamID::KP, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::KI, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::INTEGRALLIMIT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::DEADBAND, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::KD, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::LIGHTS, PARAM_TYPE_BOOL, PARAM_ACCESS_R | PARAM_ACCESS_W },
 };
 

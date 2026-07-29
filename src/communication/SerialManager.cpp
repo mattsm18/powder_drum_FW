@@ -1,4 +1,4 @@
-#include "CommsManager.h"
+#include "SerialManager.h"
 
 ///////////////////////////////////////////////////////////////
 // CORE FUNCTIONALITY & STATE MACHINE

@@ -19,11 +19,32 @@
 import argparse
 import json
 import sys
+import re
 from pathlib import Path
 
 REPO_ROOT           = Path(__file__).resolve().parent.parent
-DEFAULT_PROTOCOL    = REPO_ROOT / "config" / "pd_comms_protocol_v1.0.json"
-DEFAULT_HEADER_OUT  = REPO_ROOT / "include" / "protocol_generated.h"
+DEFAULT_HEADER_OUT = REPO_ROOT / "include" / "protocol_generated.h"
+
+# Regex to find file with latest version and run with it..
+def find_latest_protocol() -> Path:
+    config_dir = REPO_ROOT / "config"
+
+    candidates = list(config_dir.glob("pd_comms_protocol_v*.json"))
+    if not candidates:
+        sys.exit(f"No protocol files found in {config_dir}")
+
+    version_re = re.compile(r"pd_comms_protocol_v(\d+(?:\.\d+)*)\.json$")
+
+    def version(path: Path):
+        m = version_re.match(path.name)
+        if not m: return ()
+
+        return tuple(int(x) for x in m.group(1).split("."))
+
+    latest = max(candidates, key=version)
+    return latest
+
+DEFAULT_PROTOCOL = find_latest_protocol()
 
 TYPE_ENUM = {
     "float": "PARAM_TYPE_FLOAT",
@@ -68,7 +89,7 @@ def _access_flags_expr(access: list[str]) -> str:
 # trivially traceable back to the source of truth.
 def _param_const_name(name: str) -> str: return name.upper()
 
-def render_header(data: dict) -> str:
+def render_header(data: dict, protocol_path: Path) -> str:
     frame  = data["frame"]
     direc  = data["direction"]
     msgid  = data["msg_id"]
@@ -78,7 +99,10 @@ def render_header(data: dict) -> str:
     lines = []
     lines.append("// ============================================================")
     lines.append("// AUTO-GENERATED FILE \u2014 DO NOT EDIT BY HAND")
-    lines.append(f"// Source:    config/pd_comms_protocol_v1.0.json (protocol v{data['protocol_version']})")
+    lines.append(
+    f"// Source:    {protocol_path.relative_to(REPO_ROOT)} "
+    f"(protocol v{data['protocol_version']})"
+    )
     lines.append("// Generator: scripts/generate_protocol.py")
     lines.append("// Regenerate with: python scripts/generate_protocol.py")
     lines.append("// ============================================================")
@@ -167,7 +191,7 @@ def main():
     args = parser.parse_args()
 
     data = load_protocol(args.protocol)
-    header = render_header(data)
+    header = render_header(data, args.protocol)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(header)
