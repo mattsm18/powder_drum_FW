@@ -14,8 +14,7 @@ Purpose:
 #include <AS5600.h>                      // Encoder Internal Library
 #include <StepperMotor.h>                // StepperMotor Internal Library
 #include <PIDController.h>               // PI Controller Internal Libaray
-
-#include "communication/SerialManager.h"  // Serial Comms Implementation
+#include <PowderDrumProtocol.h>
 #include "pins.h"
 
 //*** Definitions ***//
@@ -28,10 +27,6 @@ Purpose:
 
 // Setup
 void setupISR();
-void mapSerialParameters();
-
-// Run
-void runSpeedControl();
 
 //*** Global Variables ***/
 float setpoint = 0;
@@ -47,20 +42,8 @@ StepperMotor motorA(
     Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ
 );
 
-#define KP 1.0
-#define KI 2.0
-#define KD 0.5
-
-PIDController controller(KP, KI, KD);
-
-SerialHandler serialComms;
-
 //*** Main Program ***/
 void setup() {
-
-    // Start Serial Comms
-    serialComms.begin(SERIAL_BAUD_RATE);
-    mapSerialParameters(); 
 
     // Setup light relay pin
     pinMode(RELAY_OUTPUT_B, OUTPUT);
@@ -69,16 +52,16 @@ void setup() {
     setupISR();
     
     motorA.enable();
+
+
+    Serial.begin(115200);
+
+    if (PowderDrumProtocol::exists(ParamID::KP)){ Serial.println("KP exists"); }
+    if (PowderDrumProtocol::isWritable(ParamID::KP)){ Serial.println("KP writable"); }
 }
 
 void loop() {
     motorA.setAngularVelocity(10.0);
-
-    //runSpeedControl();
-    //serialComms.update();
-
-    // Update the light relay
-    //(lightState > 0) ? digitalWrite(RELAY_OUTPUT_B, HIGH) : digitalWrite(RELAY_OUTPUT_B, LOW);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -101,38 +84,4 @@ ISR(TCB0_INT_vect)
 {
     motorA.tick();
     TCB0.INTFLAGS = TCB_CAPT_bm;   // Must clear flag manually — write-1-to-clear
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-// Plumb Serial Parameters to corrosponding data and/or functions
-//////////////////////////////////////////////////////////////////////////////////
-
-void mapSerialParameters()
-{
-    // SET — write only
-    serialComms.onSet([](uint8_t parameter_id, float value) {
-        switch (parameter_id) {
-            case 0x01: setpoint = value;                    break;
-            case 0x02: accelRate = value;                   break;
-            case 0x20: controller.setKp(value);             break;
-            case 0x21: controller.setKi(value);             break;
-            case 0x22: controller.setKd(value);             break;
-            case 0x30: lightState = value;                  break;
-        }
-    });
-
-    // GET — read only
-    serialComms.onGet([](uint8_t parameter_id) -> float {
-        switch (parameter_id) {
-            case 0x00: return SERIAL_PROTOCOL_VERSION;
-            case 0x01: return setpoint;
-            case 0x02: return accelRate;
-            case 0x03: return rampedSetpoint;
-            case 0x20: return controller.getKp();
-            case 0x21: return controller.getKi();
-            case 0x22: return controller.getKd();
-            case 0x30: return lightState;
-            default:   return 0.0f;
-        }
-    });
 }
