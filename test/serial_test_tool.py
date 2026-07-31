@@ -12,15 +12,22 @@
 # - Lets you:
 #     * GET / SET any parameter defined in the loaded protocol file
 #     * send a hand-crafted raw packet (arbitrary msg_id / direction /
-#       payload bytes, optional corrupted CRC) to test edge cases like
-#       SET-on-read-only, unknown parameter ids, bad CRC, etc.
-#     * see every TX/RX frame, decoded, in a scrolling log
+#       payload bytes, optional bad version, lying declared length,
+#       corrupted CRC) to test edge cases like SET-on-read-only,
+#       unknown parameter ids, wrong direction, bad CRC, etc.
+#     * see every TX/RX frame, decoded, in a scrolling log — including a
+#       raw hexdump of anything that arrives even if it never resolves
+#       into a complete parsed frame, so "board said nothing" and "board
+#       said something the parser choked on" don't look identical
+#     * run an automated edge-case suite that fires each of the above at
+#       the board in sequence and reports PASS/FAIL against the expected
+#       protocol behaviour
 #
 # Requires: pyserial   (pip install pyserial --break-system-packages)
 #
 # Usage:
 #   python test/serial_test_tool.py
-#   python test/serial_test_tool.py --protocol path/to/pd_comms_protocol_v1.0.json
+#   python test/serial_test_tool.py --protocol path/to/pd_comms_protocol_v1.1.json
 
 import argparse
 import json
@@ -30,11 +37,11 @@ import sys
 import threading
 import time
 import tkinter as tk
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
-from typing import Optional
+from typing import Callable, Optional
 
 try:
     import serial
@@ -45,7 +52,18 @@ except ImportError:
 
 
 REPO_ROOT        = Path(__file__).resolve().parent.parent
-DEFAULT_PROTOCOL = REPO_ROOT / "config" / "pd_comms_protocol_v1.0.json"
+DEFAULT_PROTOCOL = REPO_ROOT / "config" / "pd_comms_protocol_v1.1.json"
+
+# How long to hold off sending after opening the port. Nano Every (and most
+# Arduino-family boards) resets on DTR toggle when the serial port is opened,
+# so bytes sent immediately after Connect can land while the board is still
+# in setup() / mid-reset and simply get dropped — which looks identical to
+# "the board never replies" from this tool's point of view.
+BOARD_RESET_SETTLE_MS = 2000
+
+# Default window to wait for a reply before declaring an edge-case test
+# failed/timed-out. Kept generous relative to typical USB-serial latency.
+DEFAULT_TEST_WAIT_MS = 400
 
 
 # ══════════════════════════════════════════════════════════════
@@ -84,6 +102,8 @@ class ProtocolDef:
     proto_version: int
     header_size: int
     max_payload: int
+    timeout_ms: int
+    max_retries: int
     dir_by_name: dict
     dir_by_value: dict
     msgid_by_name: dict
@@ -124,6 +144,8 @@ class ProtocolDef:
             proto_version=int(frame["version"], 16),
             header_size=frame["header_size_bytes"],
             max_payload=frame["max_payload_bytes"],
+            timeout_ms=frame.get("timeout_ms", 100),
+            max_retries=frame.get("max_retries", 3),
             dir_by_name=dir_by_name, dir_by_value={v: k for k, v in dir_by_name.items()},
             msgid_by_name=msgid_by_name, msgid_by_value={v: k for k, v in msgid_by_name.items()},
             nack_by_name=nack_by_name, nack_by_value={v: k for k, v in nack_by_name.items()},
@@ -142,8 +164,19 @@ def compute_crc(data: bytes) -> int:
     return crc
 
 
-def build_packet(proto: ProtocolDef, msg_id: int, direction: int, payload: bytes, corrupt_crc: bool = False) -> bytes:
-    header = bytes([proto.sof, proto.proto_version, msg_id, direction, len(payload)])
+def build_packet(
+    proto: ProtocolDef, msg_id: int, direction: int, payload: bytes,
+    corrupt_crc: bool = False,
+    version_override: Optional[int] = None,
+    length_override: Optional[int] = None,
+) -> bytes:
+    """Build a frame. version_override/length_override let you deliberately
+    lie in the header — that's the only way to exercise the firmware's
+    version-mismatch and declared-length-vs-actual-bytes edge cases, since
+    a well-formed packet by definition can't trigger them."""
+    version = proto.proto_version if version_override is None else version_override
+    length  = len(payload) if length_override is None else length_override
+    header = bytes([proto.sof, version, msg_id, direction, length])
     crc = compute_crc(header + payload)
     if corrupt_crc: crc = (crc + 1) & 0xFF
     return header + payload + bytes([crc])
@@ -183,28 +216,29 @@ def extract_frames(buf: bytearray, proto: ProtocolDef) -> list:
     return frames
 
 
-def decode_frame(proto: ProtocolDef, frame: bytes) -> str:
-    if len(frame) < proto.header_size + 1:
-        return "malformed (shorter than header+crc)"
+# ══════════════════════════════════════════════════════════════
+# Frame parsing — structured, so both the human-readable log line
+# AND the automated test-suite assertions come from the same source
+# of truth instead of the log text being re-parsed for assertions.
+# ══════════════════════════════════════════════════════════════
 
-    version, msg_id, dir_, length = frame[1], frame[2], frame[3], frame[4]
-    payload = frame[5:5 + length]
-    crc = frame[5 + length] if len(frame) > 5 + length else None
-    computed = compute_crc(frame[:5 + length])
-
-    msg_name = proto.msgid_by_value.get(msg_id, f"UNKNOWN(0x{msg_id:02X})")
-    dir_name = proto.dir_by_value.get(dir_, f"0x{dir_:02X}")
-
-    bits = [f"ver=0x{version:02X}", f"msg={msg_name}", f"dir={dir_name}", f"len={length}"]
-
-    if version != proto.proto_version:
-        bits.append("VERSION MISMATCH")
-    if crc is None or crc != computed:
-        bits.append(f"CRC MISMATCH (recv={crc if crc is None else f'0x{crc:02X}'} calc=0x{computed:02X})")
-
-    detail = _decode_payload(proto, msg_name, payload)
-    if detail: bits.append(detail)
-    return "  |  ".join(bits)
+@dataclass
+class FrameInfo:
+    raw: bytes
+    version: int
+    msg_id: int
+    msg_name: str
+    direction: int
+    dir_name: str
+    length: int
+    payload: bytes
+    crc_received: Optional[int]
+    crc_computed: int
+    crc_ok: bool
+    version_ok: bool
+    detail: str = ""
+    nack_error_name: Optional[str] = None
+    acked_msg_name: Optional[str] = None
 
 
 def _pname(proto: ProtocolDef, pid: int) -> str:
@@ -238,8 +272,72 @@ def _decode_payload(proto: ProtocolDef, msg_name: str, payload: bytes) -> str:
     return f"payload=[{' '.join(f'{b:02X}' for b in payload)}]" if payload else ""
 
 
+def parse_frame(proto: ProtocolDef, frame: bytes) -> Optional[FrameInfo]:
+    if len(frame) < proto.header_size + 1:
+        return None
+
+    version, msg_id, dir_, length = frame[1], frame[2], frame[3], frame[4]
+    payload = frame[5:5 + length]
+    crc_received = frame[5 + length] if len(frame) > 5 + length else None
+    crc_computed = compute_crc(frame[:5 + length])
+
+    msg_name = proto.msgid_by_value.get(msg_id, f"UNKNOWN(0x{msg_id:02X})")
+    dir_name = proto.dir_by_value.get(dir_, f"0x{dir_:02X}")
+
+    info = FrameInfo(
+        raw=frame, version=version, msg_id=msg_id, msg_name=msg_name,
+        direction=dir_, dir_name=dir_name, length=length, payload=payload,
+        crc_received=crc_received, crc_computed=crc_computed,
+        crc_ok=(crc_received == crc_computed), version_ok=(version == proto.proto_version),
+    )
+    info.detail = _decode_payload(proto, msg_name, payload)
+
+    if msg_name == "NACK" and len(payload) >= 2:
+        info.nack_error_name = proto.nack_by_value.get(payload[1], f"0x{payload[1]:02X}")
+    if msg_name == "ACK" and len(payload) >= 1:
+        info.acked_msg_name = proto.msgid_by_value.get(payload[0], f"0x{payload[0]:02X}")
+
+    return info
+
+
+def decode_frame(proto: ProtocolDef, frame: bytes) -> str:
+    info = parse_frame(proto, frame)
+    if info is None:
+        return "malformed (shorter than header+crc)"
+
+    bits = [f"ver=0x{info.version:02X}", f"msg={info.msg_name}", f"dir={info.dir_name}", f"len={info.length}"]
+
+    if not info.version_ok:
+        bits.append("VERSION MISMATCH")
+    if not info.crc_ok:
+        recv = f"0x{info.crc_received:02X}" if info.crc_received is not None else "?"
+        bits.append(f"CRC MISMATCH (recv={recv} calc=0x{info.crc_computed:02X})")
+    if info.detail:
+        bits.append(info.detail)
+
+    return "  |  ".join(bits)
+
+
 def hexdump(frame: bytes) -> str:
     return " ".join(f"{b:02X}" for b in frame)
+
+
+# ══════════════════════════════════════════════════════════════
+# Automated edge-case suite — fires known-bad/known-good packets at
+# the board in sequence and checks the reply (or deliberate absence
+# of one) against what the protocol says should happen.
+# ══════════════════════════════════════════════════════════════
+
+@dataclass
+class EdgeCase:
+    name: str
+    note: str
+    build: Callable[[], bytes]
+    # None means "expect no reply at all within wait_ms" (used for the
+    # declared-length-lie test, where the correct behaviour is silence
+    # until the timeout guard resets the state machine).
+    match: Optional[Callable[[FrameInfo], bool]]
+    wait_ms: int = DEFAULT_TEST_WAIT_MS
 
 
 # ══════════════════════════════════════════════════════════════
@@ -258,7 +356,6 @@ class SerialReader(threading.Thread):
         self._stop.set()
 
     def run(self):
-        buf = bytearray()
         while not self._stop.is_set():
             try:
                 data = self._ser.read(self._ser.in_waiting or 1)
@@ -269,7 +366,6 @@ class SerialReader(threading.Thread):
             if not data:
                 continue
 
-            buf.extend(data)
             self._rx_queue.put(("raw", bytes(data)))
 
 
@@ -281,7 +377,7 @@ class SerialTestTool(tk.Tk):
     def __init__(self, initial_protocol: Path):
         super().__init__()
         self.title("PD Comms Serial Test Tool")
-        self.geometry("980x680")
+        self.geometry("1040x760")
 
         self.proto: Optional[ProtocolDef] = None
         self.ser: Optional[serial.Serial] = None
@@ -289,9 +385,19 @@ class SerialTestTool(tk.Tk):
         self.rx_queue: "queue.Queue" = queue.Queue()
         self._rx_buf = bytearray()
 
+        # Every parsed frame, timestamped, so the edge-case runner can ask
+        # "did anything matching X arrive after I sent at time T" without
+        # re-parsing the log text.
+        self._recent_frames: list = []
+
+        self._board_ready = False   # gated behind BOARD_RESET_SETTLE_MS after connect
+        self._edge_cases: list = []
+        self._edge_case_results: list = []
+
         self._build_protocol_frame(initial_protocol)
         self._build_connection_frame()
         self._build_main_panes()
+        self._build_edge_case_frame()
         self._build_log_frame()
 
         self._load_protocol()
@@ -333,7 +439,8 @@ class SerialTestTool(tk.Tk):
             return
 
         self.protocol_status_var.set(
-            f"v{self.proto.version} — {len(self.proto.params_by_id)} parameters loaded from {path.name}"
+            f"v{self.proto.version} — {len(self.proto.params_by_id)} parameters — "
+            f"timeout={self.proto.timeout_ms}ms retries={self.proto.max_retries} — loaded from {path.name}"
         )
         self._populate_param_tree()
         self._populate_raw_combos()
@@ -390,9 +497,25 @@ class SerialTestTool(tk.Tk):
         self.reader = SerialReader(self.ser, self.rx_queue)
         self.reader.start()
         self.connect_btn.config(text="Disconnect")
-        self.conn_status_var.set(f"connected: {port} @ {baud}")
+
+        # Most Arduino-family boards (Nano Every included) reset when the
+        # serial port is opened (DTR toggle). Sending immediately risks the
+        # board still being mid-reset/in setup() and silently dropping
+        # bytes — indistinguishable from "board never replies" otherwise.
+        self._board_ready = False
+        self.conn_status_var.set(f"connected: {port} @ {baud}  (waiting for board reset...)")
+        self.conn_status_lbl.config(foreground="orange")
+        self._log("info", f"Connected to {port} @ {baud} — board likely reset on DTR, "
+                           f"holding sends for {BOARD_RESET_SETTLE_MS}ms")
+        self.after(BOARD_RESET_SETTLE_MS, self._mark_board_ready)
+
+    def _mark_board_ready(self):
+        if self.ser is None:
+            return  # disconnected during the settle window
+        self._board_ready = True
+        self.conn_status_var.set(f"connected: {self.port_var.get()} @ {self.baud_var.get()}")
         self.conn_status_lbl.config(foreground="green")
-        self._log("info", f"Connected to {port} @ {baud}")
+        self._log("info", "Board should be up now — ready to send")
 
     def _disconnect(self):
         if self.reader:
@@ -402,6 +525,8 @@ class SerialTestTool(tk.Tk):
             try: self.ser.close()
             except (serial.SerialException, OSError): pass
             self.ser = None
+        self._board_ready = False
+        self._recent_frames.clear()
         self.connect_btn.config(text="Connect")
         self.conn_status_var.set("disconnected")
         self.conn_status_lbl.config(foreground="red")
@@ -458,8 +583,20 @@ class SerialTestTool(tk.Tk):
         ttk.Label(row3, text="e.g. param 0x20 + float 1.0 little-endian, space separated", foreground="#666").pack(anchor="w")
 
         row4 = ttk.Frame(raw_frame); row4.pack(fill="x", padx=6, pady=4)
+        ttk.Label(row4, text="version override (blank = protocol default):").pack(anchor="w")
+        self.raw_version_var = tk.StringVar(value="")
+        ttk.Entry(row4, textvariable=self.raw_version_var, width=10).pack(anchor="w", pady=2)
+        ttk.Label(row4, text="set to any value ≠ current version to test VERSION_MISMATCH", foreground="#666").pack(anchor="w")
+
+        row5 = ttk.Frame(raw_frame); row5.pack(fill="x", padx=6, pady=4)
+        ttk.Label(row5, text="declared length override (blank = actual payload length):").pack(anchor="w")
+        self.raw_length_var = tk.StringVar(value="")
+        ttk.Entry(row5, textvariable=self.raw_length_var, width=10).pack(anchor="w", pady=2)
+        ttk.Label(row5, text="set higher than the real payload to test the mid-packet timeout guard", foreground="#666").pack(anchor="w")
+
+        row6 = ttk.Frame(raw_frame); row6.pack(fill="x", padx=6, pady=4)
         self.corrupt_crc_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(row4, text="Corrupt CRC (send CRC+1)", variable=self.corrupt_crc_var).pack(anchor="w")
+        ttk.Checkbutton(row6, text="Corrupt CRC (send CRC+1)", variable=self.corrupt_crc_var).pack(anchor="w")
 
         ttk.Button(raw_frame, text="Send Raw Packet", command=self._send_raw).pack(padx=6, pady=8, anchor="w")
 
@@ -488,8 +625,171 @@ class SerialTestTool(tk.Tk):
         self.param_value_var.set(str(p.default))
         hint = f"range [{p.min}, {p.max}]  access={p.access}"
         if not p.writable:
-            hint += "  — read-only: SET should come back NACK"
+            hint += "  — read-only: SET should come back NACK READ_ONLY"
         self.param_hint_var.set(hint)
+
+    # ── Edge-case suite panel ───────────────────────────────────
+
+    def _build_edge_case_frame(self):
+        frame = ttk.LabelFrame(self, text="Automated edge-case suite")
+        frame.pack(fill="x", padx=8, pady=4)
+
+        ttk.Button(frame, text="Run Edge Case Suite", command=self._run_edge_case_suite).pack(side="left", padx=6, pady=6)
+        ttk.Label(
+            frame,
+            text="Runs: happy-path round trip, read-only SET, unknown param, wrong direction, "
+                 "bad CRC (+ recovery), wrong version, length-lie timeout (+ recovery), unknown msg_id, heartbeat.",
+            foreground="#666",
+        ).pack(side="left", padx=8)
+
+    def _pick_writable_param(self) -> Optional[Param]:
+        for p in self.proto.params_by_id.values():
+            if p.writable: return p
+        return None
+
+    def _pick_readonly_param(self) -> Optional[Param]:
+        for p in self.proto.params_by_id.values():
+            if not p.writable: return p
+        return None
+
+    def _pick_unknown_id(self) -> Optional[int]:
+        for pid in range(256):
+            if pid not in self.proto.params_by_id: return pid
+        return None
+
+    def _build_edge_case_defs(self) -> list:
+        proto = self.proto
+        writable = self._pick_writable_param()
+        readonly = self._pick_readonly_param()
+        unknown_id = self._pick_unknown_id()
+        test_value = 4.25
+        bad_version = 0x01 if proto.proto_version != 0x01 else 0x02
+        length_lie_wait_ms = proto.timeout_ms + 250
+
+        cases: list = []
+
+        if writable:
+            cases.append(EdgeCase(
+                "SET writable parameter",
+                f"SET {writable.name}=0x{writable.id:02X} to {test_value} — expect ACK",
+                lambda: build_set(proto, writable.id, test_value),
+                lambda info: info.msg_name == "ACK" and info.acked_msg_name == "CMD_SET",
+            ))
+            cases.append(EdgeCase(
+                "GET writable parameter back",
+                f"GET {writable.name} — expect value ≈ {test_value}",
+                lambda: build_get(proto, writable.id),
+                lambda info: info.msg_name == "CMD_GET" and len(info.payload) >= 5
+                             and abs(struct.unpack("<f", info.payload[1:5])[0] - test_value) < 1e-3,
+            ))
+            cases.append(EdgeCase(
+                "Wrong direction byte",
+                f"CMD_GET on {writable.name} with direction=MCU_TO_PC — expect NACK BAD_DIRECTION",
+                lambda: build_packet(proto, proto.msgid_by_name["CMD_GET"], proto.dir_by_name["MCU_TO_PC"],
+                                      bytes([writable.id])),
+                lambda info: info.msg_name == "NACK" and info.nack_error_name == "BAD_DIRECTION",
+            ))
+            cases.append(EdgeCase(
+                "Corrupted CRC",
+                f"valid GET on {writable.name} with CRC+1 — expect NACK BAD_CRC",
+                lambda: build_packet(proto, proto.msgid_by_name["CMD_GET"], proto.dir_by_name["PC_TO_MCU"],
+                                      bytes([writable.id]), corrupt_crc=True),
+                lambda info: info.msg_name == "NACK" and info.nack_error_name == "BAD_CRC",
+            ))
+            cases.append(EdgeCase(
+                "Recovery after bad CRC",
+                "heartbeat sent immediately after — state machine must not be stuck",
+                lambda: build_packet(proto, proto.msgid_by_name["HEARTBEAT"], proto.dir_by_name["PC_TO_MCU"], b""),
+                lambda info: info.msg_name == "HEARTBEAT",
+            ))
+            cases.append(EdgeCase(
+                "Wrong protocol version",
+                f"version byte=0x{bad_version:02X} (actual=0x{proto.proto_version:02X}) — expect NACK VERSION_MISMATCH",
+                lambda: build_packet(proto, proto.msgid_by_name["CMD_GET"], proto.dir_by_name["PC_TO_MCU"],
+                                      bytes([writable.id]), version_override=bad_version),
+                lambda info: info.msg_name == "NACK" and info.nack_error_name == "VERSION_MISMATCH",
+            ))
+            cases.append(EdgeCase(
+                "Declared length longer than sent",
+                f"length byte claims 50 bytes — expect NO reply within {length_lie_wait_ms}ms (timeout guard, not a NACK)",
+                lambda: build_packet(proto, proto.msgid_by_name["CMD_GET"], proto.dir_by_name["PC_TO_MCU"],
+                                      bytes([writable.id]), length_override=50),
+                None,
+                length_lie_wait_ms,
+            ))
+            cases.append(EdgeCase(
+                "Recovery after length-lie timeout",
+                "heartbeat sent after the stall — state machine must have reset back to IDLE",
+                lambda: build_packet(proto, proto.msgid_by_name["HEARTBEAT"], proto.dir_by_name["PC_TO_MCU"], b""),
+                lambda info: info.msg_name == "HEARTBEAT",
+            ))
+
+        if readonly:
+            cases.append(EdgeCase(
+                "SET read-only parameter",
+                f"SET {readonly.name} (read-only) — expect NACK READ_ONLY",
+                lambda: build_set(proto, readonly.id, 0.0),
+                lambda info: info.msg_name == "NACK" and info.nack_error_name == "READ_ONLY",
+            ))
+
+        if unknown_id is not None:
+            cases.append(EdgeCase(
+                "GET unknown parameter id",
+                f"GET 0x{unknown_id:02X} (not in protocol) — expect NACK UNKNOWN_PARAM",
+                lambda: build_get(proto, unknown_id),
+                lambda info: info.msg_name == "NACK" and info.nack_error_name == "UNKNOWN_PARAM",
+            ))
+
+        cases.append(EdgeCase(
+            "Unknown message id (ACK sent by PC)",
+            "PC sends an ACK frame (nothing should ever send us one) — expect NACK UNKNOWN_MSG",
+            lambda: build_packet(proto, proto.msgid_by_name["ACK"], proto.dir_by_name["PC_TO_MCU"], b"\x00"),
+            lambda info: info.msg_name == "NACK" and info.nack_error_name == "UNKNOWN_MSG",
+        ))
+
+        cases.append(EdgeCase(
+            "Plain heartbeat",
+            "expect a heartbeat back",
+            lambda: build_packet(proto, proto.msgid_by_name["HEARTBEAT"], proto.dir_by_name["PC_TO_MCU"], b""),
+            lambda info: info.msg_name == "HEARTBEAT",
+        ))
+
+        return cases
+
+    def _run_edge_case_suite(self):
+        if not self._require_ready(): return
+
+        self._edge_cases = self._build_edge_case_defs()
+        self._edge_case_results = []
+        self._log("test", f"===== Running edge-case suite ({len(self._edge_cases)} tests) =====")
+        self._run_next_edge_case(0)
+
+    def _run_next_edge_case(self, index: int):
+        if index >= len(self._edge_cases):
+            passed = sum(1 for r in self._edge_case_results if r)
+            total = len(self._edge_case_results)
+            tag = "test" if passed == total else "fail"
+            self._log(tag, f"===== Suite complete: {passed}/{total} passed =====")
+            return
+
+        case = self._edge_cases[index]
+        send_time = time.monotonic()
+        self._transmit(case.build())
+        self._log("test", f"[{index + 1}/{len(self._edge_cases)}] {case.name} — {case.note}")
+        self.after(case.wait_ms, lambda: self._check_edge_case(index, send_time))
+
+    def _check_edge_case(self, index: int, send_time: float):
+        case = self._edge_cases[index]
+        relevant = [info for (ts, info) in self._recent_frames if ts >= send_time]
+
+        if case.match is None:
+            ok = len(relevant) == 0
+        else:
+            ok = any(case.match(info) for info in relevant)
+
+        self._edge_case_results.append(ok)
+        self._log("test" if ok else "fail", f"    -> {'PASS' if ok else 'FAIL'}")
+        self._run_next_edge_case(index + 1)
 
     # ── Log panel ────────────────────────────────────────────────
 
@@ -497,7 +797,7 @@ class SerialTestTool(tk.Tk):
         frame = ttk.LabelFrame(self, text="Log")
         frame.pack(fill="both", expand=True, padx=8, pady=(4, 8))
 
-        self.log_text = scrolledtext.ScrolledText(frame, height=14, font=("Courier New", 10), state="disabled")
+        self.log_text = scrolledtext.ScrolledText(frame, height=16, font=("Courier New", 10), state="disabled")
         self.log_text.pack(fill="both", expand=True, padx=6, pady=(6, 0))
 
         ttk.Button(frame, text="Clear log", command=self._clear_log).pack(anchor="e", padx=6, pady=4)
@@ -510,7 +810,7 @@ class SerialTestTool(tk.Tk):
     def _log(self, tag: str, text: str):
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         self.log_text.config(state="normal")
-        self.log_text.insert("end", f"[{ts}] {tag.upper():5} {text}\n")
+        self.log_text.insert("end", f"[{ts}] {tag.upper():7} {text}\n")
         self.log_text.see("end")
         self.log_text.config(state="disabled")
 
@@ -522,6 +822,13 @@ class SerialTestTool(tk.Tk):
             return False
         if self.ser is None:
             messagebox.showwarning("Not connected", "Connect to a serial port first")
+            return False
+        if not self._board_ready:
+            messagebox.showinfo(
+                "Board still resetting",
+                f"Still within the {BOARD_RESET_SETTLE_MS}ms post-connect settle window — "
+                "the board likely just reset on DTR. Try again in a moment.",
+            )
             return False
         return True
 
@@ -559,11 +866,21 @@ class SerialTestTool(tk.Tk):
             direction = self.proto.dir_by_name[self.raw_dir_var.get()]
             payload_str = self.raw_payload_var.get().strip()
             payload = bytes(int(b, 16) for b in payload_str.split()) if payload_str else b""
+
+            version_str = self.raw_version_var.get().strip()
+            length_str = self.raw_length_var.get().strip()
+            version_override = int(version_str, 0) if version_str else None
+            length_override = int(length_str, 0) if length_str else None
         except (KeyError, ValueError) as e:
             messagebox.showwarning("Bad raw packet", f"Couldn't build packet: {e}")
             return
 
-        frame = build_packet(self.proto, msg_id, direction, payload, corrupt_crc=self.corrupt_crc_var.get())
+        frame = build_packet(
+            self.proto, msg_id, direction, payload,
+            corrupt_crc=self.corrupt_crc_var.get(),
+            version_override=version_override,
+            length_override=length_override,
+        )
         self._transmit(frame)
 
     # ── RX handling ──────────────────────────────────────────────
@@ -573,15 +890,25 @@ class SerialTestTool(tk.Tk):
             while True:
                 kind, payload = self.rx_queue.get_nowait()
                 if kind == "raw":
+                    #self._log("rx-raw", hexdump(payload))
                     self._rx_buf.extend(payload)
                     if self.proto:
                         for frame in extract_frames(self._rx_buf, self.proto):
+                            info = parse_frame(self.proto, frame)
+                            if info is not None:
+                                self._recent_frames.append((time.monotonic(), info))
                             self._log("rx", f"{hexdump(frame):<40}  {decode_frame(self.proto, frame)}")
                 elif kind == "error":
                     self._log("error", payload)
                     self._disconnect()
         except queue.Empty:
             pass
+
+        # Trim old frames so this doesn't grow unbounded over a long session.
+        cutoff = time.monotonic() - 10.0
+        if self._recent_frames:
+            self._recent_frames = [x for x in self._recent_frames if x[0] > cutoff]
+
         self.after(50, self._poll_rx_queue)
 
     def _on_close(self):

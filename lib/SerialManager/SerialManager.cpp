@@ -1,6 +1,8 @@
 #include "SerialManager.h"
 #include "PowderDrumProtocol.h"
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::begin(uint32_t baudRate)
 {
     Serial.begin(baudRate);
@@ -8,6 +10,8 @@ void SerialManager::begin(uint32_t baudRate)
     _bytesRead = 0;
     _lastByteTime = millis();
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SerialManager::update()
 {
@@ -30,6 +34,8 @@ void SerialManager::update()
     }
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::_handleIdle()
 {
     while(Serial.available())
@@ -43,6 +49,8 @@ void SerialManager::_handleIdle()
         return;
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SerialManager::_handleReadHeader()
 {
@@ -89,6 +97,8 @@ void SerialManager::_handleReadHeader()
     _state = SerialState::READ_PAYLOAD;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::_handleReadPayload()
 {
     uint16_t expectedBytes = HEADER_SIZE_BYTES + _rxPacket.length + 1; // + CRC byte
@@ -103,6 +113,8 @@ void SerialManager::_handleReadPayload()
 
     _state = SerialState::VALIDATE;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SerialManager::_handleValidate()
 {
@@ -122,6 +134,8 @@ void SerialManager::_handleValidate()
     _state = SerialState::DISPATCH;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::_handleDispatch()
 {
     switch (_rxPacket.msgID)
@@ -129,7 +143,6 @@ void SerialManager::_handleDispatch()
         case MSG_CMD_SET:   _onCmdSet(_rxPacket);  break;
         case MSG_CMD_GET:   _onCmdGet(_rxPacket);  break;
         case MSG_HEARTBEAT: sendHeartbeat();       break;
-        case MSG_ACK:       /* nothing to do yet */break;
         default:
             _sendNACK(_rxPacket.msgID, ERR_UNKNOWN_MSG);
             break;
@@ -139,6 +152,8 @@ void SerialManager::_handleDispatch()
     _bytesRead = 0;
     _rxPacket = Packet{};
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SerialManager::_onCmdSet(const Packet& packet)
 {
@@ -160,6 +175,8 @@ void SerialManager::_onCmdSet(const Packet& packet)
     _sendACK(packet.msgID);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::_onCmdGet(const Packet& packet)
 {
     if (packet.length < 1) { _sendNACK(packet.msgID, ERR_BAD_LEN); return; }
@@ -173,12 +190,16 @@ void SerialManager::_onCmdGet(const Packet& packet)
     sendParameter(parameterID, _getCallback(parameterID));
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 uint8_t SerialManager::_computeCRC(const uint8_t* data, uint8_t length)
 {
     uint8_t crc = 0x00;
     for (uint8_t i = 0; i < length; i++) crc ^= data[i];
     return crc;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SerialManager::_sendPacket(uint8_t msgID, uint8_t direction, const uint8_t* payload, uint8_t length)
 {
@@ -196,17 +217,23 @@ void SerialManager::_sendPacket(uint8_t msgID, uint8_t direction, const uint8_t*
     Serial.write(crc);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::_sendACK(uint8_t acknowledgedMessage)
 {
     uint8_t payload[1] = { acknowledgedMessage };
     _sendPacket(MSG_ACK, DIR_MCU_TO_PC, payload, 1);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::_sendNACK(uint8_t rejectedMessage, NackError error)
 {
     uint8_t payload[2] = { rejectedMessage, (uint8_t)error };
     _sendPacket(MSG_NACK, DIR_MCU_TO_PC, payload, 2);
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SerialManager::sendParameter(uint8_t parameterID, float value)
 {
@@ -215,13 +242,19 @@ void SerialManager::sendParameter(uint8_t parameterID, float value)
     _sendPacket(MSG_CMD_GET, DIR_MCU_TO_PC, payload, 5);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::sendStatus(uint8_t statusCode)
 {
     uint8_t payload[1] = { statusCode };
     _sendPacket(MSG_STATUS, DIR_MCU_TO_PC, payload, 1);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SerialManager::sendHeartbeat() { _sendPacket(MSG_HEARTBEAT, DIR_MCU_TO_PC, nullptr, 0); }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SerialManager::onSet(SetCallback callback) { _setCallback = callback; }
 void SerialManager::onGet(GetCallback callback) { _getCallback = callback; }

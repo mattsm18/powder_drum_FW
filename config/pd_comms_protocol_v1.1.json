@@ -36,11 +36,11 @@
      },
 
     "parameters": [
-        {
-            "id": "0x00", "name": "protocolVersion", "label": "Protocol Version",
-            "access": ["r", "w"], "type": "float", "default": 1.0,
-            "min": 0.0, "max": 10.0, "unit": "", "group": "system"
-        },
+{
+             "id": "0x00", "name": "protocolVersion", "label": "Protocol Version",
+             "access": ["r"], "type": "float", "default": 1.0,
+             "min": 0.0, "max": 10.0, "unit": "", "group": "system"
+         },
         {
             "id": "0x01", "name": "setpoint", "label": "Setpoint",
             "access": ["r", "w"], "type": "float", "default": 0.0,

@@ -23,6 +23,8 @@ PIDController::PIDController
         _prevError(0.0f)
     {}
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 float PIDController::update(float error, float dt) {
 
     _integral += error * dt;
@@ -34,10 +36,14 @@ float PIDController::update(float error, float dt) {
     return (_kP * error) + (_kI * _integral) + (_kD * derivative);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void PIDController::reset() { 
     _integral = 0.0f; 
     _prevError = 0.0f;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void PIDController::setKp(float kP) { _kP = kP; }
 void PIDController::setKi(float kI) { _kI = kI; }

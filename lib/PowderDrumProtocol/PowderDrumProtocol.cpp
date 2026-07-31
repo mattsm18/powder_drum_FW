@@ -9,6 +9,8 @@ Purpose:
 namespace PowderDrumProtocol
 {
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
     bool findParameter(uint8_t parameterID, ParamMeta& metadata)
     {
         for (uint8_t i = 0; i < PARAM_TABLE_LEN; i++)
@@ -26,7 +28,7 @@ namespace PowderDrumProtocol
         return false;
     }
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
     bool exists(uint8_t parameterID)
     {
@@ -34,7 +36,7 @@ namespace PowderDrumProtocol
         return findParameter(parameterID, metadata);
     }
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
     bool isReadable(uint8_t parameterID)
     {
@@ -44,7 +46,7 @@ namespace PowderDrumProtocol
         return metadata.access & PARAM_ACCESS_R;
     }
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
     bool isWritable(uint8_t parameterID)
     {
@@ -54,7 +56,7 @@ namespace PowderDrumProtocol
         return metadata.access & PARAM_ACCESS_W;
     }
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
     ParamType type(uint8_t parameterID)
     {
@@ -63,5 +65,7 @@ namespace PowderDrumProtocol
 
         return static_cast<ParamType>(metadata.type);
     }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 }

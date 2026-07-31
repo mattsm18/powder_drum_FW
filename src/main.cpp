@@ -15,6 +15,7 @@ Purpose:
 #include <StepperMotor.h>                // StepperMotor Internal Library
 #include <PIDController.h>               // PI Controller Internal Libaray
 #include <PowderDrumProtocol.h>
+#include <SerialManager.h>
 #include "pins.h"
 
 //*** Definitions ***//
@@ -27,6 +28,7 @@ Purpose:
 
 // Setup
 void setupISR();
+void mapSerialParameters();
 
 //*** Global Variables ***/
 float setpoint = 0;
@@ -36,46 +38,62 @@ float lightState = 255.0f; //0 = off, anything > 0 = on
 
 //*** Instantiate Objects ***//
 AS5600 encoderA;
-
-StepperMotor motorA(
-    TB6600_DRIVER_A_PUL, TB6600_DRIVER_A_DIR, TB6600_DRIVER_A_ENA, 
-    Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ
-);
+StepperMotor motorA(TB6600_DRIVER_A_PUL, TB6600_DRIVER_A_DIR, TB6600_DRIVER_A_ENA, Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ);
+SerialManager serialManager;
 
 //*** Main Program ***/
 void setup() {
 
-    // Setup light relay pin
-    pinMode(RELAY_OUTPUT_B, OUTPUT);
-
-    // Setup ISR to Fire StepperMotor ticks atomically
     setupISR();
     
     motorA.enable();
-
-
-    Serial.begin(115200);
-
-    if (PowderDrumProtocol::exists(ParamID::KP)){ Serial.println("KP exists"); }
-    if (PowderDrumProtocol::isWritable(ParamID::KP)){ Serial.println("KP writable"); }
+    serialManager.begin(SERIAL_BAUD_RATE);
+    mapSerialParameters();
 }
 
 void loop() {
+    serialManager.update();
     motorA.setAngularVelocity(10.0);
 }
 
-//////////////////////////////////////////////////////////////////////////////////
-// HARDWARE INTERRUPT SERVICE ROUTINE (ISR) -> Fixed clock for motor updates
-//////////////////////////////////////////////////////////////////////////////////
+void mapSerialParameters()
+{
+    serialManager.onSet([](uint8_t parameterID, float value) {
+        switch (parameterID) {
+            case ParamID::SETPOINT:setpoint  = value; break;
+            case ParamID::ACCELRATE:accelRate = value; break;
+            //case ParamID::KP: kP = value; break;
+            //case ParamID::KI: kI = value; break;
+            //case ParamID::KD: kD = value; break;
+            case ParamID::LIGHTS: lightState = value; break;
+        }
+    });
 
+    serialManager.onGet([](uint8_t parameterID) -> float {
+        switch (parameterID) {
+            case ParamID::PROTOCOLVERSION:        return SERIAL_PROTOCOL_VERSION;
+            case ParamID::SETPOINT:               return setpoint;
+            case ParamID::ACCELRATE:              return accelRate;
+            case ParamID::RAMPEDSETPOINT:         return rampedSetpoint;
+            //case ParamID::ENCODERANGULARVELOCITY: return encoderVelocity;
+            //case ParamID::KP: return kP;
+            //case ParamID::KI: return kI;
+            //case ParamID::KD: return kD;
+            case ParamID::LIGHTS: return lightState;
+            default: return 0.0f;
+        }
+    });
+}
+
+// HARDWARE INTERRUPT SERVICE ROUTINE (ISR) -> Fixed clock for motor updates
 // Setup function for Hardware interrupts, used to drive StepperMotors atomically
 void setupISR() 
 {
-    cli();
-    TCB0.CTRLB   = TCB_CNTMODE_INT_gc;               // Periodic interrupt mode (CTC-equivalent)
-    TCB0.CCMP    = (F_CPU / ISR_FREQ_HZ) - 1;         // Period/compare value
-    TCB0.INTCTRL = TCB_CAPT_bm;                       // Enable compare/capture interrupt
-    TCB0.CTRLA   = TCB_CLKSEL_CLKDIV1_gc | TCB_ENABLE_bm; // Start timer, no prescale (clk/1)
+    cli();  
+    TCB0.CTRLB   = TCB_CNTMODE_INT_gc;                      // Periodic interrupt mode (CTC-equivalent)
+    TCB0.CCMP    = (F_CPU / ISR_FREQ_HZ) - 1;               // Period/compare value
+    TCB0.INTCTRL = TCB_CAPT_bm;                             // Enable compare/capture interrupt
+    TCB0.CTRLA   = TCB_CLKSEL_CLKDIV1_gc | TCB_ENABLE_bm;   // Start timer, no prescale (clk/1)
     sei();
 }
 

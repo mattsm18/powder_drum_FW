@@ -62,7 +62,7 @@ enum ParamType : uint8_t {
 // ---- Parameter IDs ----
 // Use these instead of magic hex when binding parameters in main.cpp.
 namespace ParamID {
-    constexpr uint8_t PROTOCOLVERSION            = 0x00; // Protocol Version [system]
+    constexpr uint8_t PROTOCOLVERSION            = 0x00; // Protocol Version [system]  (read-only)
     constexpr uint8_t SETPOINT                   = 0x01; // Setpoint rad/s [motor]
     constexpr uint8_t ACCELRATE                  = 0x02; // Accel Rate rad/s^2 [motor]
     constexpr uint8_t RAMPEDSETPOINT             = 0x03; // Ramped Setpoint rad/s [motor]  (read-only)
@@ -84,7 +84,7 @@ struct ParamMeta {
 };
 
 const ParamMeta PARAM_TABLE[] PROGMEM = {
-    { ParamID::PROTOCOLVERSION, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::PROTOCOLVERSION, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
     { ParamID::SETPOINT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::ACCELRATE, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::RAMPEDSETPOINT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
