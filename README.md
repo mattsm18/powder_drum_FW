@@ -10,8 +10,8 @@ ENME891 is the capstone paper for the BE(Hons) degree at AUT. It is a year-long 
 <b>Quanitfying the flowability of milk powders through the use of computer vision </b>
 
 ### Project members / responsibilities:
-- Matthew Smith -> Embedded Firmware and Software Development, Electronic Design, on-device computer vision development
-- Josh Russell -> Mechanical design and build, MATLAB Computer vision models
+- Matthew Smith -> Embedded Firmware and Software Development, Mechanical Design, Electronic Design & Assembly
+- Josh Russell -> Mechanical build and machining, MATLAB Computer vision modelling.
 
 # Target
 ### Arduino Nano Every 
@@ -33,9 +33,17 @@ Potential for future, more capable targets due to using the PlatformIO framework
 - Determines current angular velocity of the motor
 - Applies a 1st order discrete time filter
 
-### PIController
-- Wraps all PI Controller functionality
-- Handles dynamic Kp, and Ki Gains + Integral Windup and deadband
+### PIDController
+- Wraps all PID Controller functionality
+- Handles dynamic Kp, Ki and Kd gains
+
+### SerialManager
+- Implements the packet framing protocol (SOF, header, payload, XOR CRC) over serial
+- Validates and dispatches incoming GET/SET requests, returning ACK/NACK per the protocol
+
+### PowderDrumProtocol
+- Auto-generated from a single JSON source of truth (config/pd_comms_protocol_vX.X.json)
+- Provides parameter metadata lookup (existence, access permissions) used by SerialManager
 
 # Dependencies
 - Use of the PlatformIO extension in VSCode for compiling, running and debugging code
@@ -50,5 +58,3 @@ the firmware and the software
 This protocol includes ACKs, NACKs and a XOR CRC checksum to validate data integrity on the wire.
 
 Fully implemented in the firmware, some work still to do for ACK and NACK handling in the software.
-
-![alt text](https://github.com/mattsm18/powder_drum_FW/blob/main/docs/serial_protocol.png "Custom Serial Protocol")
