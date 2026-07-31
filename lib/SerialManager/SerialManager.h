@@ -1,5 +1,5 @@
 /*
-Title: SerialHandler.h
+Title: SerialManager.h
 Author: Matthew Smith 22173112
 Date: 29/07/26
 
@@ -47,9 +47,7 @@ struct Packet
     uint8_t msgID;
     uint8_t direction;
     uint8_t length;
-
     uint8_t payload[MAX_PAYLOAD_BYTES];
-
     uint8_t crc;
 };
 
@@ -70,7 +68,7 @@ enum class SerialState : uint8_t
 // Serial Handler //
 /////////////////////
 
-class SerialHandler
+class SerialManager
 {
 public:
 
@@ -114,14 +112,6 @@ private:
 
     void _onCmdSet(const Packet& packet);
     void _onCmdGet(const Packet& packet);
-
-    /////////////////////////////
-    // Parameter Metadata //
-    /////////////////////////////
-
-    bool _findParameter(uint8_t parameterID, ParamMeta& meta);
-    bool _isReadable(uint8_t parameterID);
-    bool _isWritable(uint8_t parameterID);
 
     ///////////////////////
     // Packet TX //

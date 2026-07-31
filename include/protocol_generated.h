@@ -39,6 +39,10 @@ enum NackError : uint8_t {
     ERR_BAD_CRC            = 0x02,
     ERR_UNKNOWN_MSG        = 0x03,
     ERR_BAD_LEN            = 0x04,
+    ERR_BAD_DIRECTION      = 0x05,
+    ERR_UNKNOWN_PARAM      = 0x06,
+    ERR_READ_ONLY          = 0x07,
+    ERR_WRITE_ONLY         = 0x08,
 };
 
 // ---- Parameter access flags (bitmask) ----

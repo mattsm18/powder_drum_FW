@@ -24,12 +24,16 @@
         "HEARTBEAT": "0xFF"
     },
 
-    "nack_error": {
-        "VERSION_MISMATCH": "0x01",
-        "BAD_CRC":          "0x02",
-        "UNKNOWN_MSG":      "0x03",
-        "BAD_LEN":          "0x04"
-    },
+     "nack_error": {
+         "VERSION_MISMATCH": "0x01",
+         "BAD_CRC":          "0x02",
+         "UNKNOWN_MSG":      "0x03",
+         "BAD_LEN":          "0x04",
+         "BAD_DIRECTION":    "0x05",
+         "UNKNOWN_PARAM":    "0x06",
+         "READ_ONLY":        "0x07",
+         "WRITE_ONLY":       "0x08"
+     },
 
     "parameters": [
         {

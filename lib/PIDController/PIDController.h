@@ -1,5 +1,5 @@
-#ifndef PICONTROLLER_H
-#define PICONTROLLER_H
+#ifndef PIDCONTROLLER_H
+#define PIDCONTROLLER_H
 
 #include "Arduino.h"
 
