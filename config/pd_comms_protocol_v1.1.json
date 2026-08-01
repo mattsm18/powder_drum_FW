@@ -42,44 +42,54 @@
              "min": 0.0, "max": 10.0, "unit": "", "group": "system"
          },
         {
-            "id": "0x01", "name": "setpoint", "label": "Setpoint",
+            "id": "0x01", "name": "targetAngularVelocity", "label": "Target Speed",
             "access": ["r", "w"], "type": "float", "default": 0.0,
-            "min": 0.0, "max": 30.0, "unit": "rad/s", "group": "motor"
+            "min": 0.0, "max": 40.0, "unit": "rad/s", "group": "controller"
         },
         {
-            "id": "0x02", "name": "accelRate", "label": "Accel Rate",
+            "id": "0x02", "name": "accelerationRate", "label": "Acceleration",
             "access": ["r", "w"], "type": "float", "default": 5.0,
-            "min": 0.1, "max": 20.0, "unit": "rad/s^2", "group": "motor"
-        },
-        {
-            "id": "0x03", "name": "rampedSetpoint", "label": "Ramped Setpoint",
-            "access": ["r"], "type": "float", "default": 0.0,
-            "min": 0.0, "max": 70.0, "unit": "rad/s", "group": "motor"
-        },
-        {
-            "id": "0x10", "name": "encoderAngularVelocity", "label": "Angular Velocity",
-            "access": ["r"], "type": "float", "default": 0.0,
-            "min": -100.0, "max": 100.0, "unit": "rad/s", "group": "motor"
-        },
-        {
-            "id": "0x20", "name": "Kp", "label": "Kp",
-            "access": ["r", "w"], "type": "float", "default": 1.0,
-            "min": 0.0, "max": 20.0, "unit": "", "group": "motor"
-        },
-        {
-            "id": "0x21", "name": "Ki", "label": "Ki",
-            "access": ["r", "w"], "type": "float", "default": 2.0,
-            "min": 0.0, "max": 10.0, "unit": "", "group": "motor"
+            "min": 0.1, "max": 40.0, "unit": "rad/s^2", "group": "controller"
         },
                 {
-            "id": "0x22", "name": "Kd", "label": "Kd",
-            "access": ["r", "w"], "type": "float", "default": 2.0,
-            "min": 0.0, "max": 10.0, "unit": "", "group": "motor"
+            "id": "0x10", "name": "PIDproportionalGain", "label": "PID Proportional Gain",
+            "access": ["r", "w"], "type": "float", "default": 1.0,
+            "min": 0.0, "max": 20.0, "unit": "", "group": "controller"
         },
         {
-            "id": "0x30", "name": "lights", "label": "Lights",
+            "id": "0x11", "name": "PIDintegralGain", "label": "PID Integral Gain",
+            "access": ["r", "w"], "type": "float", "default": 2.0,
+            "min": 0.0, "max": 10.0, "unit": "", "group": "controller"
+        },
+                {
+            "id": "0x12", "name": "PIDderivativeGain", "label": "PID Derivative Gain",
+            "access": ["r", "w"], "type": "float", "default": 2.0,
+            "min": 0.0, "max": 10.0, "unit": "", "group": "controller"
+        },
+        {
+            "id": "0x20", "name": "encoderAngularVelocity", "label": "Measured Speed",
+            "access": ["r"], "type": "float", "default": 0.0,
+            "min": 0.0, "max": 70.0, "unit": "rad/s", "group": "encoder"
+        },
+        {
+            "id": "0x21", "name": "encoderAngleRadians", "label": "Measured Angle (Radians)",
+            "access": ["r"], "type": "float", "default": 0.0,
+            "min": -100.0, "max": 100.0, "unit": "radians", "group": "encoder"
+        },
+        {
+            "id": "0x22", "name": "encoderAngleDegrees", "label": "Measured Angle (Degrees)",
+            "access": ["r"], "type": "float", "default": 0.0,
+            "min": -100.0, "max": 100.0, "unit": "degrees", "group": "encoder"
+        },
+        {
+            "id": "0x40", "name": "motorAngularVelocity", "label": "Commanded Speed (motor)",
+            "access": ["r"], "type": "float", "default": 0.0,
+            "min": -100.0, "max": 100.0, "unit": "degrees", "group": "encoder"
+        },
+        {
+            "id": "0x30", "name": "toggleLights", "label": "Toggle Lights",
             "access": ["r", "w"], "type": "bool", "default": 0.0,
-            "min": 0.0, "max": 1.0, "unit": "", "group": "io"
+            "min": 0.0, "max": 1.0, "unit": "", "group": "light"
         }
     ]
 }

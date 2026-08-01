@@ -63,14 +63,16 @@ enum ParamType : uint8_t {
 // Use these instead of magic hex when binding parameters in main.cpp.
 namespace ParamID {
     constexpr uint8_t PROTOCOLVERSION            = 0x00; // Protocol Version [system]  (read-only)
-    constexpr uint8_t SETPOINT                   = 0x01; // Setpoint rad/s [motor]
-    constexpr uint8_t ACCELRATE                  = 0x02; // Accel Rate rad/s^2 [motor]
-    constexpr uint8_t RAMPEDSETPOINT             = 0x03; // Ramped Setpoint rad/s [motor]  (read-only)
-    constexpr uint8_t ENCODERANGULARVELOCITY     = 0x10; // Angular Velocity rad/s [motor]  (read-only)
-    constexpr uint8_t KP                         = 0x20; // Kp [motor]
-    constexpr uint8_t KI                         = 0x21; // Ki [motor]
-    constexpr uint8_t KD                         = 0x22; // Kd [motor]
-    constexpr uint8_t LIGHTS                     = 0x30; // Lights [io]
+    constexpr uint8_t TARGETANGULARVELOCITY      = 0x01; // Target Speed rad/s [controller]
+    constexpr uint8_t ACCELERATIONRATE           = 0x02; // Acceleration rad/s^2 [controller]
+    constexpr uint8_t PIDPROPORTIONALGAIN        = 0x10; // PID Proportional Gain [controller]
+    constexpr uint8_t PIDINTEGRALGAIN            = 0x11; // PID Integral Gain [controller]
+    constexpr uint8_t PIDDERIVATIVEGAIN          = 0x12; // PID Derivative Gain [controller]
+    constexpr uint8_t ENCODERANGULARVELOCITY     = 0x20; // Measured Speed rad/s [encoder]  (read-only)
+    constexpr uint8_t ENCODERANGLERADIANS        = 0x21; // Measured Angle (Radians) radians [encoder]  (read-only)
+    constexpr uint8_t ENCODERANGLEDEGREES        = 0x22; // Measured Angle (Degrees) degrees [encoder]  (read-only)
+    constexpr uint8_t MOTORANGULARVELOCITY       = 0x40; // Commanded Speed (motor) degrees [encoder]  (read-only)
+    constexpr uint8_t TOGGLELIGHTS               = 0x30; // Toggle Lights [light]
 }
 
 // ---- Parameter metadata table ----
@@ -85,14 +87,16 @@ struct ParamMeta {
 
 const ParamMeta PARAM_TABLE[] PROGMEM = {
     { ParamID::PROTOCOLVERSION, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
-    { ParamID::SETPOINT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::ACCELRATE, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::RAMPEDSETPOINT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
+    { ParamID::TARGETANGULARVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::ACCELERATIONRATE, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::PIDPROPORTIONALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::PIDINTEGRALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::PIDDERIVATIVEGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::ENCODERANGULARVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
-    { ParamID::KP, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::KI, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::KD, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::LIGHTS, PARAM_TYPE_BOOL, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::ENCODERANGLERADIANS, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
+    { ParamID::ENCODERANGLEDEGREES, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
+    { ParamID::MOTORANGULARVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
+    { ParamID::TOGGLELIGHTS, PARAM_TYPE_BOOL, PARAM_ACCESS_R | PARAM_ACCESS_W },
 };
 
 #define PARAM_TABLE_LEN (sizeof(PARAM_TABLE) / sizeof(PARAM_TABLE[0]))

@@ -4,18 +4,14 @@ Author: Matthew Smith
 Date: 29/04/26
 Purpose:
 -  Entry point for powder drum FW
--  Call all higher level functionality
 -  Pass relevant data between objects
 
 */
-#include <avr/interrupt.h>
 
 #include <Arduino.h>
-#include <AS5600.h>                      // Encoder Internal Library
-#include <StepperMotor.h>                // StepperMotor Internal Library
-#include <PIDController.h>               // PI Controller Internal Libaray
 #include <PowderDrumProtocol.h>
-#include <SerialManager.h>
+#include "SerialManager/SerialManager.h"
+#include "MotionManager/MotionManager.h"
 #include "pins.h"
 
 //*** Definitions ***//
@@ -30,56 +26,45 @@ Purpose:
 void setupISR();
 void mapSerialParameters();
 
-//*** Global Variables ***/
-float setpoint = 0;
-float rampedSetpoint = 0.0f;
-float accelRate = 5.0f;
-float lightState = 255.0f; //0 = off, anything > 0 = on
-
 //*** Instantiate Objects ***//
-AS5600 encoderA;
-StepperMotor motorA(TB6600_DRIVER_A_PUL, TB6600_DRIVER_A_DIR, TB6600_DRIVER_A_ENA, Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ);
 SerialManager serialManager;
 
 //*** Main Program ***/
 void setup() {
 
     setupISR();
-    
-    motorA.enable();
-    serialManager.begin(SERIAL_BAUD_RATE);
     mapSerialParameters();
+
+    serialManager.begin(SERIAL_BAUD_RATE);
 }
 
 void loop() {
     serialManager.update();
-    motorA.setAngularVelocity(10.0);
 }
 
 void mapSerialParameters()
 {
     serialManager.onSet([](uint8_t parameterID, float value) {
         switch (parameterID) {
-            case ParamID::SETPOINT:setpoint  = value; break;
-            case ParamID::ACCELRATE:accelRate = value; break;
+            case ParamID::TARGETANGULARVELOCITY: break;
+            case ParamID::ACCELERATIONRATE:      break;
             //case ParamID::KP: kP = value; break;
             //case ParamID::KI: kI = value; break;
             //case ParamID::KD: kD = value; break;
-            case ParamID::LIGHTS: lightState = value; break;
+            case ParamID::TOGGLELIGHTS: break;
         }
     });
 
     serialManager.onGet([](uint8_t parameterID) -> float {
         switch (parameterID) {
             case ParamID::PROTOCOLVERSION:        return SERIAL_PROTOCOL_VERSION;
-            case ParamID::SETPOINT:               return setpoint;
-            case ParamID::ACCELRATE:              return accelRate;
-            case ParamID::RAMPEDSETPOINT:         return rampedSetpoint;
-            //case ParamID::ENCODERANGULARVELOCITY: return encoderVelocity;
+            case ParamID::TARGETANGULARVELOCITY:  return 0;
+            case ParamID::ACCELERATIONRATE:       return 0;
+            case ParamID::ENCODERANGULARVELOCITY: return 0;
             //case ParamID::KP: return kP;
             //case ParamID::KI: return kI;
             //case ParamID::KD: return kD;
-            case ParamID::LIGHTS: return lightState;
+            case ParamID::TOGGLELIGHTS: return 0;
             default: return 0.0f;
         }
     });
