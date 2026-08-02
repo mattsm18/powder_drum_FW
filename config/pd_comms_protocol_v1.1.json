@@ -82,12 +82,12 @@
             "min": -100.0, "max": 100.0, "unit": "degrees", "group": "encoder"
         },
         {
-            "id": "0x40", "name": "motorAngularVelocity", "label": "Commanded Speed (motor)",
+            "id": "0x30", "name": "motorAngularVelocity", "label": "Commanded Speed (motor)",
             "access": ["r"], "type": "float", "default": 0.0,
             "min": -100.0, "max": 100.0, "unit": "degrees", "group": "encoder"
         },
         {
-            "id": "0x30", "name": "toggleLights", "label": "Toggle Lights",
+            "id": "0x40", "name": "toggleLights", "label": "Toggle Lights",
             "access": ["r", "w"], "type": "bool", "default": 0.0,
             "min": 0.0, "max": 1.0, "unit": "", "group": "light"
         }

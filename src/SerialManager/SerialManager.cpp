@@ -6,6 +6,7 @@
 void SerialManager::begin(uint32_t baudRate)
 {
     Serial.begin(baudRate);
+    Serial.println("BOOT");
     _state = SerialState::IDLE;
     _bytesRead = 0;
     _lastByteTime = millis();

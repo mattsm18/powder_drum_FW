@@ -71,8 +71,8 @@ namespace ParamID {
     constexpr uint8_t ENCODERANGULARVELOCITY     = 0x20; // Measured Speed rad/s [encoder]  (read-only)
     constexpr uint8_t ENCODERANGLERADIANS        = 0x21; // Measured Angle (Radians) radians [encoder]  (read-only)
     constexpr uint8_t ENCODERANGLEDEGREES        = 0x22; // Measured Angle (Degrees) degrees [encoder]  (read-only)
-    constexpr uint8_t MOTORANGULARVELOCITY       = 0x40; // Commanded Speed (motor) degrees [encoder]  (read-only)
-    constexpr uint8_t TOGGLELIGHTS               = 0x30; // Toggle Lights [light]
+    constexpr uint8_t MOTORANGULARVELOCITY       = 0x30; // Commanded Speed (motor) degrees [encoder]  (read-only)
+    constexpr uint8_t TOGGLELIGHTS               = 0x40; // Toggle Lights [light]
 }
 
 // ---- Parameter metadata table ----

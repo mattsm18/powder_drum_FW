@@ -10,61 +10,69 @@ Purpose:
 
 #include <Arduino.h>
 #include <PowderDrumProtocol.h>
+#include <StepperMotor.h>
 #include "SerialManager/SerialManager.h"
 #include "MotionManager/MotionManager.h"
 #include "pins.h"
-
-//*** Definitions ***//
-
-// Timing
-#define ISR_FREQ_HZ 32000
-
-// Serial Comms
-#define SERIAL_BAUD_RATE 115200
 
 // Setup
 void setupISR();
 void mapSerialParameters();
 
 //*** Instantiate Objects ***//
-SerialManager serialManager;
+SerialManager serial;
+MotionManager motion;
+
+//*** Global State ***//
+float lightState = 0.0f; // 0 = off, anything > 0 = on
 
 //*** Main Program ***/
 void setup() {
 
+    pinMode(RELAY_OUTPUT_B, OUTPUT);
+    digitalWrite(RELAY_OUTPUT_B, LOW);
+
     setupISR();
     mapSerialParameters();
 
-    serialManager.begin(SERIAL_BAUD_RATE);
+    serial.begin(115200);
+    motion.begin();
 }
 
 void loop() {
-    serialManager.update();
+    serial.update();
+    motion.update();
 }
 
 void mapSerialParameters()
 {
-    serialManager.onSet([](uint8_t parameterID, float value) {
+    serial.onSet([](uint8_t parameterID, float value) {
         switch (parameterID) {
-            case ParamID::TARGETANGULARVELOCITY: break;
-            case ParamID::ACCELERATIONRATE:      break;
-            //case ParamID::KP: kP = value; break;
-            //case ParamID::KI: kI = value; break;
-            //case ParamID::KD: kD = value; break;
-            case ParamID::TOGGLELIGHTS: break;
+            case ParamID::TARGETANGULARVELOCITY: motion.setTargetVelocity(value); break;
+            case ParamID::ACCELERATIONRATE:      motion.setAccelRate(value);      break;
+            case ParamID::PIDPROPORTIONALGAIN:   motion.setKp(value);             break;
+            case ParamID::PIDINTEGRALGAIN:       motion.setKi(value);             break;
+            case ParamID::PIDDERIVATIVEGAIN:     motion.setKd(value);             break;
+            case ParamID::TOGGLELIGHTS:
+                lightState = value;
+                digitalWrite(RELAY_OUTPUT_B, lightState > 0.0f ? HIGH : LOW);
+                break;
         }
     });
 
-    serialManager.onGet([](uint8_t parameterID) -> float {
+    serial.onGet([](uint8_t parameterID) -> float {
         switch (parameterID) {
             case ParamID::PROTOCOLVERSION:        return SERIAL_PROTOCOL_VERSION;
-            case ParamID::TARGETANGULARVELOCITY:  return 0;
-            case ParamID::ACCELERATIONRATE:       return 0;
-            case ParamID::ENCODERANGULARVELOCITY: return 0;
-            //case ParamID::KP: return kP;
-            //case ParamID::KI: return kI;
-            //case ParamID::KD: return kD;
-            case ParamID::TOGGLELIGHTS: return 0;
+            case ParamID::TARGETANGULARVELOCITY:  return motion.getTargetVelocity();
+            case ParamID::ACCELERATIONRATE:       return motion.getAccelRate();
+            case ParamID::PIDPROPORTIONALGAIN:    return motion.getKp();
+            case ParamID::PIDINTEGRALGAIN:        return motion.getKi();
+            case ParamID::PIDDERIVATIVEGAIN:      return motion.getKd();
+            case ParamID::ENCODERANGULARVELOCITY: return motion.getEncoderAngularVelocity();
+            case ParamID::ENCODERANGLERADIANS:    return motion.getEncoderAngleRadians();
+            case ParamID::ENCODERANGLEDEGREES:    return motion.getEncoderAngleDegrees();
+            case ParamID::MOTORANGULARVELOCITY:   return motion.getMotorAngularVelocity();
+            case ParamID::TOGGLELIGHTS:           return lightState;
             default: return 0.0f;
         }
     });
@@ -85,6 +93,6 @@ void setupISR()
 // Attach ISR to StepperMotor step function
 ISR(TCB0_INT_vect) 
 {
-    motorA.tick();
+    StepperMotor::tickAll();
     TCB0.INTFLAGS = TCB_CAPT_bm;   // Must clear flag manually — write-1-to-clear
 }
