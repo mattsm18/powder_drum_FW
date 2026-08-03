@@ -49,7 +49,13 @@
         },
 
         {
-            "id": "0x02", "name": "accelerationRate", "label": "Acceleration",
+            "id": "0x02", "name": "rampedSetpoint", "label": "Target Speed (Ramped)",
+            "access": ["r", "w"], "type": "float", "default": 0.0,
+            "min": 0.0, "max": 40.0, "unit": "rad/s", "group": "controller"
+        },
+
+        {
+            "id": "0x03", "name": "accelerationRate", "label": "Acceleration",
             "access": ["r", "w"], "type": "float", "default": 5.0,
             "min": 0.1, "max": 40.0, "unit": "rad/s^2", "group": "controller"
         },

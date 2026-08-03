@@ -34,7 +34,7 @@ Note:
 #define KI 0.1f
 #define KD 0.0f
 #define INTEGRAL_LIMIT 20.0f   
-#define OUTPUT_LIMIT   30.0f   // real max achievable motor rad/s
+#define OUTPUT_LIMIT   40.0f   // real max achievable motor rad/s
 
 class MotionManager
 {
@@ -65,6 +65,7 @@ public:
     float getKd() { return _controller.getKd(); }
     
     float getSetpoint()               { return _setpointVelocity; }
+    float getRampedSetpoint()         { return _rampedSetpoint; }
     float getMeasuredVelocity()       { return _measuredVelocity; }
     float getControlVelocity()        { return _controlVelocity; }
     float getAccelRate()              { return _accelRate; }
@@ -78,6 +79,7 @@ private:
 
     // Setpoint / Motion Profile
     float _setpointVelocity = 0.0f; 
+    float _rampedSetpoint = 0.0f;
     float _measuredVelocity = 0.0f;
     float _controlVelocity = 0.0f;
 

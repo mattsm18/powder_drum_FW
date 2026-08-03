@@ -35,12 +35,17 @@ void MotionManager::updateControlLoop()
 {
     _measuredVelocity = _encoder.getAngularVelocityRadS();
 
+    // Ramp toward the commanded setpoint rather than stepping onto it directly
+    float delta = _setpointVelocity - _rampedSetpoint;
+    float maxStep = _accelRate * MOTION_DT;
+    _rampedSetpoint += constrain(delta, -maxStep, maxStep);
+
     // Closed-loop
-    float error = _setpointVelocity - _measuredVelocity;
+    float error = _rampedSetpoint - _measuredVelocity;
     float correction = _controller.update(error, MOTION_DT);
 
-    // Feed-forward (commanded = setpoint + correction)
-    _controlVelocity = _setpointVelocity + correction;
+    // Feed-forward (commanded = ramped setpoint + correction)
+    _controlVelocity = _rampedSetpoint + correction;
 
     // Command motor to move at specified velocity
     _motor.setAngularVelocity(_controlVelocity);

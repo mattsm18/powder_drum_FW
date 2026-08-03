@@ -64,6 +64,7 @@ void mapSerialParameters()
         switch (parameterID) {
             case ParamID::PROTOCOLVERSION:        return SERIAL_PROTOCOL_VERSION;
             case ParamID::SETPOINT:               return motion.getSetpoint();
+            case ParamID::RAMPEDSETPOINT:         return motion.getRampedSetpoint();
             case ParamID::ACCELERATIONRATE:       return motion.getAccelRate();
             case ParamID::PIDPROPORTIONALGAIN:    return motion.getKp();
             case ParamID::PIDINTEGRALGAIN:        return motion.getKi();

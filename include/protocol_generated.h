@@ -64,7 +64,8 @@ enum ParamType : uint8_t {
 namespace ParamID {
     constexpr uint8_t PROTOCOLVERSION            = 0x00; // Protocol Version [system]  (read-only)
     constexpr uint8_t SETPOINT                   = 0x01; // Target Speed rad/s [controller]
-    constexpr uint8_t ACCELERATIONRATE           = 0x02; // Acceleration rad/s^2 [controller]
+    constexpr uint8_t RAMPEDSETPOINT             = 0x02; // Target Speed (Ramped) rad/s [controller]
+    constexpr uint8_t ACCELERATIONRATE           = 0x03; // Acceleration rad/s^2 [controller]
     constexpr uint8_t PIDPROPORTIONALGAIN        = 0x10; // PID Proportional Gain [controller]
     constexpr uint8_t PIDINTEGRALGAIN            = 0x11; // PID Integral Gain [controller]
     constexpr uint8_t PIDDERIVATIVEGAIN          = 0x12; // PID Derivative Gain [controller]
@@ -86,6 +87,7 @@ struct ParamMeta {
 const ParamMeta PARAM_TABLE[] PROGMEM = {
     { ParamID::PROTOCOLVERSION, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
     { ParamID::SETPOINT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::RAMPEDSETPOINT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::ACCELERATIONRATE, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::PIDPROPORTIONALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::PIDINTEGRALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
