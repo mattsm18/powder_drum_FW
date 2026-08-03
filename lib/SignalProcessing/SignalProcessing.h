@@ -4,5 +4,6 @@
 #define SIGNALPROCESSING_H
 
 #include "EMAFilter/EMAFilter.h"
+#include "MovingAverage/MovingAverage.h"
 
 #endif

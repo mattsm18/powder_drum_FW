@@ -25,87 +25,66 @@ Note:
 #include "pins.h"
 
 #define STEPPER_TICK_ISR_FREQ_HZ 32000
-#define MOTION_LOOP_FREQ_HZ 200
-#define MOTION_LOOP_PERIOD_US (1000000UL / MOTION_LOOP_FREQ_HZ)
-#define MOTION_LOOP_DT        (1.0f / MOTION_LOOP_FREQ_HZ)
+#define MOTION_UPDATE_FREQ_HZ 200
+#define MOTION_UPDATE_PERIOD_US (1000000UL / MOTION_UPDATE_FREQ_HZ)
+#define MOTION_DT               (1.0f / MOTION_UPDATE_FREQ_HZ)
 
 // Default Controller Gains
-#define KP 5.0f
-#define KI 1.0f
+#define KP 0.2f
+#define KI 0.1f
 #define KD 0.0f
 #define INTEGRAL_LIMIT 20.0f   
 #define OUTPUT_LIMIT   30.0f   // real max achievable motor rad/s
 
-// Velocity Estimation Filtration
-#define VELOCITY_ESTIMATION_WINDOW 10
-#define EMA_FILTER_TIME_CONST 0.02f
-
 class MotionManager
 {
 public:
-
+    
     MotionManager();
-
+    
+    /////*** PUBLIC METHODS ***/////
     void begin();
     void update();
+    void updateControlLoop();
 
     void enableMotor()  { _motor.enable(); }
     void disableMotor() { _motor.disable(); }
 
-    // Setpoint / Motion Profile
-    void setSetpointAngularVelocity(float radPerSec) { _setpoint = radPerSec; }
-    void setAccelRate(float radPerSec2) { _accelRate = radPerSec2; }
+    /////*** PUBLIC ACCESSORS ***/////
+    // Setters
+    void setSetpoint(float setpoint) { _setpointVelocity = setpoint; }
+    void setAccelRate(float accel)  { _accelRate = accel; }
 
-    float getSetpointAngularVelocity() const { return _setpoint; }
-    float getRampedAngularVelocity() const { return _rampedSetpoint; }
-    float getAccelRate() const { return _accelRate; }
-
-    // Controller Tuning
     void setKp(float kP) { _controller.setKp(kP); }
     void setKi(float kI) { _controller.setKi(kI); }
     void setKd(float kD) { _controller.setKd(kD); }
 
+    // Getters
     float getKp() { return _controller.getKp(); }
     float getKi() { return _controller.getKi(); }
     float getKd() { return _controller.getKd(); }
-
-    // Accessors
-    float getEncoderAngularVelocity() { return _measuredVelocity; }
-    float getEncoderAngleRadians()    { return _encoder.getAngleRadians(); }
-    float getEncoderAngleDegrees()    { return _encoder.getAngleDegrees(); }
-
-    float getMotorAngularVelocity()   { return _motor.getAngularVelocity(); }
-    void setMotorAngularVelocity(float value) { _motor.setAngularVelocity(value); }
-
+    
+    float getSetpoint()               { return _setpointVelocity; }
+    float getMeasuredVelocity()       { return _measuredVelocity; }
+    float getControlVelocity()        { return _controlVelocity; }
+    float getAccelRate()              { return _accelRate; }
+    
 private:
 
     // Hardware
     AS5600 _encoder;
     StepperMotor _motor;
-    EMAFilter _filter;
-
-    // Signal Processing / Control
-    float _thetaBuffer[VELOCITY_ESTIMATION_WINDOW] = {0.0f};
-    uint8_t _thetaIndex = 0;
-    bool _thetaBufferFilled = false;
-
     PIDController _controller;
 
     // Setpoint / Motion Profile
-    float _setpoint = 0.0f;
-    float _rampedSetpoint = 0.0f;
+    float _setpointVelocity = 0.0f; 
+    float _measuredVelocity = 0.0f;
+    float _controlVelocity = 0.0f;
+
     float _accelRate = 5.0f;
 
-    // Velocity Estimation
-    float _thetaPrev = 0.0f;
-    float _measuredVelocity = 0.0f;
-    bool _estimatorInitialised = false;
-
-    // Timing
+    // Dt calculation
     uint32_t _lastControlMicros = 0;
-
-    // Helper functions
-    float _estimateEncoderVelocity();
 };
 
 #endif

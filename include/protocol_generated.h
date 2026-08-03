@@ -63,15 +63,13 @@ enum ParamType : uint8_t {
 // Use these instead of magic hex when binding parameters in main.cpp.
 namespace ParamID {
     constexpr uint8_t PROTOCOLVERSION            = 0x00; // Protocol Version [system]  (read-only)
-    constexpr uint8_t SETPOINTANGULARVELOCITY    = 0x01; // Target Speed rad/s [controller]
+    constexpr uint8_t SETPOINT                   = 0x01; // Target Speed rad/s [controller]
     constexpr uint8_t ACCELERATIONRATE           = 0x02; // Acceleration rad/s^2 [controller]
     constexpr uint8_t PIDPROPORTIONALGAIN        = 0x10; // PID Proportional Gain [controller]
     constexpr uint8_t PIDINTEGRALGAIN            = 0x11; // PID Integral Gain [controller]
     constexpr uint8_t PIDDERIVATIVEGAIN          = 0x12; // PID Derivative Gain [controller]
-    constexpr uint8_t ENCODERANGULARVELOCITY     = 0x20; // Measured Speed rad/s [encoder]  (read-only)
-    constexpr uint8_t ENCODERANGLERADIANS        = 0x21; // Measured Angle (Radians) radians [encoder]  (read-only)
-    constexpr uint8_t ENCODERANGLEDEGREES        = 0x22; // Measured Angle (Degrees) degrees [encoder]  (read-only)
-    constexpr uint8_t MOTORANGULARVELOCITY       = 0x30; // Commanded Speed (motor) rad/s [motor]
+    constexpr uint8_t MEASUREDVELOCITY           = 0x15; // Measured Velocity rad/s [motor]  (read-only)
+    constexpr uint8_t CONTROLVELOCITY            = 0x16; // Control Velocity rad/s [motor]  (read-only)
     constexpr uint8_t TOGGLELIGHTS               = 0x40; // Toggle Lights [light]
 }
 
@@ -87,15 +85,13 @@ struct ParamMeta {
 
 const ParamMeta PARAM_TABLE[] PROGMEM = {
     { ParamID::PROTOCOLVERSION, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
-    { ParamID::SETPOINTANGULARVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::SETPOINT, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::ACCELERATIONRATE, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::PIDPROPORTIONALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::PIDINTEGRALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::PIDDERIVATIVEGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
-    { ParamID::ENCODERANGULARVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
-    { ParamID::ENCODERANGLERADIANS, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
-    { ParamID::ENCODERANGLEDEGREES, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
-    { ParamID::MOTORANGULARVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::MEASUREDVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
+    { ParamID::CONTROLVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
     { ParamID::TOGGLELIGHTS, PARAM_TYPE_BOOL, PARAM_ACCESS_R | PARAM_ACCESS_W },
 };
 

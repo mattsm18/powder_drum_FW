@@ -59,8 +59,8 @@ class Param:
     access: str
     type: str
     default: float
-    min: float
-    max: float
+    min: float | int | None
+    max: float | int | None
     unit: str
     group: str
 
@@ -71,6 +71,14 @@ class Param:
     @property
     def writable(self) -> bool:
         return "w" in self.access
+
+    @property
+    def bounded(self) -> bool:
+        """True only if both min and max are present. Partial bounds (one
+        set, one missing) are treated as unbounded rather than guessed at —
+        a lone min/max without its counterpart isn't enough to validate
+        against safely."""
+        return self.min is not None and self.max is not None
 
 
 @dataclass
@@ -112,8 +120,8 @@ class ProtocolDef:
                 access="".join(p["access"]),
                 type=p["type"],
                 default=p["default"],
-                min=p["min"],
-                max=p["max"],
+                min=p.get("min"),
+                max=p.get("max"),
                 unit=p["unit"],
                 group=p["group"],
             )
@@ -1074,6 +1082,16 @@ class SerialTestTool(tk.Tk):
         self._redraw_graph()
         self._update_legend()
 
+    def _format_axis_value(self, value: float, span: float) -> str:
+        """Pick a sensible number of decimals based on how large the visible range is."""
+        if span < 1:
+            return f"{value:.3f}"
+        if span < 10:
+            return f"{value:.2f}"
+        if span < 100:
+            return f"{value:.1f}"
+        return f"{value:.0f}"
+
     def _redraw_graph(self) -> None:
         canvas = self.graph_canvas
         canvas.delete("all")
@@ -1082,18 +1100,13 @@ class SerialTestTool(tk.Tk):
         if width < 20 or height < 20:
             return
 
-        margin_l, margin_r, margin_t, margin_b = 48, 12, 12, 22
+        margin_l, margin_r, margin_t, margin_b = 60, 12, 12, 22
         plot_w = max(1, width - margin_l - margin_r)
         plot_h = max(1, height - margin_t - margin_b)
 
-        # Axes
         canvas.create_rectangle(
             margin_l, margin_t, margin_l + plot_w, margin_t + plot_h, outline="#333"
         )
-        for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
-            y = margin_t + plot_h - frac * plot_h
-            canvas.create_line(margin_l, y, margin_l + plot_w, y, fill="#222")
-            canvas.create_text(margin_l - 6, y, text=f"{frac:.2f}", fill="#777", anchor="e", font=("Consolas", 8))
 
         try:
             window_s = max(1.0, float(self.graph_window_var.get()))
@@ -1125,7 +1138,7 @@ class SerialTestTool(tk.Tk):
 
         t_min = now_t - window_s
 
-        # Determine global visible range
+        # Shared axis range across every currently-plotted parameter — real values, not normalised
         global_min = float("inf")
         global_max = float("-inf")
 
@@ -1133,7 +1146,6 @@ class SerialTestTool(tk.Tk):
             data = self._graph_data.get(pid)
             if not data:
                 continue
-
             for t, v in data:
                 if t >= t_min:
                     global_min = min(global_min, v)
@@ -1142,17 +1154,36 @@ class SerialTestTool(tk.Tk):
         if global_min == float("inf"):
             return
 
-        if abs(global_max - global_min) < 1e-6:
-            global_max += 1.0
-            global_min -= 1.0
+        span = global_max - global_min
+        if span < 1e-6:
+            # Flat signal — give it a small fixed window around the value rather than
+            # collapsing to a single line or blowing up noise to fill the plot.
+            pad = 0.5 if abs(global_max) < 1.0 else abs(global_max) * 0.05
+            global_min -= pad
+            global_max += pad
+        else:
+            # Small headroom so traces don't hug the top/bottom edge exactly
+            pad = span * 0.08
+            global_min -= pad
+            global_max += pad
+
+        axis_span = global_max - global_min
+
+        # Y-axis gridlines + real value labels (5 evenly spaced ticks)
+        for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
+            y = margin_t + plot_h - frac * plot_h
+            value = global_min + frac * axis_span
+            canvas.create_line(margin_l, y, margin_l + plot_w, y, fill="#222")
+            canvas.create_text(
+                margin_l - 6, y,
+                text=self._format_axis_value(value, axis_span),
+                fill="#777", anchor="e", font=("Consolas", 8),
+            )
 
         for pid in self._graph_selected_ids:
             data = self._graph_data.get(pid)
             if not data or len(data) < 2:
                 continue
-
-            vmin = global_min
-            vmax = global_max
 
             color = self._graph_colors.get(pid, "#00AAFF")
             flat: list[float] = []
@@ -1160,7 +1191,7 @@ class SerialTestTool(tk.Tk):
                 if t < t_min:
                     continue
                 x = margin_l + ((t - t_min) / window_s) * plot_w
-                norm = (v - vmin) / (vmax - vmin)
+                norm = (v - global_min) / axis_span
                 norm = min(1.0, max(0.0, norm))
                 y = margin_t + plot_h - norm * plot_h
                 flat.extend((x, y))
@@ -1169,7 +1200,7 @@ class SerialTestTool(tk.Tk):
 
         canvas.create_text(
             margin_l + plot_w, margin_t + plot_h + 10,
-            text=f"last {window_s:.0f}s (normalised to each parameter's min/max)",
+            text=f"last {window_s:.0f}s (auto-scaled, shared axis across ticked params)",
             fill="#666", anchor="e", font=("Consolas", 8),
         )
 

@@ -36,56 +36,54 @@
      },
 
     "parameters": [
-{
+        {
              "id": "0x00", "name": "protocolVersion", "label": "Protocol Version",
              "access": ["r"], "type": "float", "default": 1.0,
-             "min": 0.0, "max": 10.0, "unit": "", "group": "system"
-         },
+             "unit": "", "group": "system"
+        },
+
         {
-            "id": "0x01", "name": "setpointAngularVelocity", "label": "Target Speed",
+            "id": "0x01", "name": "setpoint", "label": "Target Speed",
             "access": ["r", "w"], "type": "float", "default": 0.0,
             "min": 0.0, "max": 40.0, "unit": "rad/s", "group": "controller"
         },
+
         {
             "id": "0x02", "name": "accelerationRate", "label": "Acceleration",
             "access": ["r", "w"], "type": "float", "default": 5.0,
             "min": 0.1, "max": 40.0, "unit": "rad/s^2", "group": "controller"
         },
+
         {
             "id": "0x10", "name": "PIDproportionalGain", "label": "PID Proportional Gain",
             "access": ["r", "w"], "type": "float", "default": 1.0,
             "min": 0.0, "max": 20.0, "unit": "", "group": "controller"
         },
+
         {
             "id": "0x11", "name": "PIDintegralGain", "label": "PID Integral Gain",
             "access": ["r", "w"], "type": "float", "default": 2.0,
             "min": 0.0, "max": 10.0, "unit": "", "group": "controller"
         },
-                {
+
+        {
             "id": "0x12", "name": "PIDderivativeGain", "label": "PID Derivative Gain",
             "access": ["r", "w"], "type": "float", "default": 2.0,
             "min": 0.0, "max": 10.0, "unit": "", "group": "controller"
         },
+
         {
-            "id": "0x20", "name": "encoderAngularVelocity", "label": "Measured Speed",
+            "id": "0x15", "name": "measuredVelocity", "label": "Measured Velocity",
             "access": ["r"], "type": "float", "default": 0.0,
-            "min": 0.0, "max": 70.0, "unit": "rad/s", "group": "encoder"
+            "unit": "rad/s", "group": "motor"
         },
+                
         {
-            "id": "0x21", "name": "encoderAngleRadians", "label": "Measured Angle (Radians)",
+            "id": "0x16", "name": "controlVelocity", "label": "Control Velocity",
             "access": ["r"], "type": "float", "default": 0.0,
-            "min": -100.0, "max": 100.0, "unit": "radians", "group": "encoder"
+            "unit": "rad/s", "group": "motor"
         },
-        {
-            "id": "0x22", "name": "encoderAngleDegrees", "label": "Measured Angle (Degrees)",
-            "access": ["r"], "type": "float", "default": 0.0,
-            "min": -100.0, "max": 100.0, "unit": "degrees", "group": "encoder"
-        },
-        {
-            "id": "0x30", "name": "motorAngularVelocity", "label": "Commanded Speed (motor)",
-            "access": ["r", "w"], "type": "float", "default": 0.0,
-            "min": -100.0, "max": 100.0, "unit": "rad/s", "group": "motor"
-        },
+
         {
             "id": "0x40", "name": "toggleLights", "label": "Toggle Lights",
             "access": ["r", "w"], "type": "bool", "default": 0.0,
