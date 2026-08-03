@@ -2,8 +2,8 @@
 """Standalone serial test tool for the PC <-> MCU comms protocol.
 
 Re-implements framing/CRC locally (no dependency on src/). Loads protocol JSON
-at runtime. Supports GET/SET, raw packet injection, TX/RX logging, and an
-automated edge-case suite.
+at runtime. Supports GET/SET, raw packet injection, TX/RX logging, an
+automated edge-case suite, and a live multi-parameter poll/graph view.
 
 Requires: pyserial  (pip install pyserial)
 Usage:    python test/serial_test_tool.py [--protocol path/to/protocol.json]
@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +38,13 @@ DEFAULT_PROTOCOL = REPO_ROOT / "config" / "pd_comms_protocol_v1.1.json"
 BOARD_RESET_SETTLE_MS = 2000
 DEFAULT_TEST_WAIT_MS = 400
 LOG_FONT = ("Consolas", 10)
+
+# Palette cycled through for graphed parameters (extended if more are selected)
+GRAPH_COLORS = [
+    "#00AAFF", "#FF5555", "#55FF88", "#FFCC00",
+    "#CC66FF", "#FF8800", "#00FFCC", "#FF66AA",
+    "#AAAAAA", "#66CCFF",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -371,8 +379,8 @@ class SerialTestTool(tk.Tk):
     def __init__(self, initial_protocol: Path) -> None:
         super().__init__()
         self.title("PD Comms Serial Test Tool")
-        self.geometry("1020x740")
-        self.minsize(900, 600)
+        self.geometry("1080x820")
+        self.minsize(960, 680)
 
         self.proto: ProtocolDef | None = None
         self.ser: serial.Serial | None = None
@@ -384,12 +392,24 @@ class SerialTestTool(tk.Tk):
         self._edge_cases: list[EdgeCase] = []
         self._edge_case_results: list[bool] = []
 
+        # -- Live graph state --
+        self._graph_checkbox_vars: dict[int, tk.BooleanVar] = {}  # param id -> ticked state
+        self._graph_swatches: dict[int, tk.Canvas] = {}            # param id -> colour swatch widget
+        self._graph_selected_ids: list[int] = []      # currently polled/plotted param ids (ticked)
+        self._graph_data: dict[int, deque] = {}       # param id -> deque[(elapsed_s, value)]
+        self._graph_colors: dict[int, str] = {}        # param id -> hex colour
+        self._graph_running = False
+        self._graph_start_time: float | None = None
+        self._graph_after_id: str | None = None
+        self._graph_interval_ms = 100
+        self._graph_poll_index = 0
+
         self._configure_styles()
         self._build_protocol_bar(initial_protocol)
         self._build_connection_bar()
         self._build_main_panes()
         self._build_test_bar()
-        self._build_log_panel()
+        self._build_bottom_notebook()
 
         self._load_protocol()
         self._refresh_ports()
@@ -444,6 +464,7 @@ class SerialTestTool(tk.Tk):
         self.protocol_status_var.set(f"v{self.proto.version} · {n} params · {path.name}")
         self._populate_param_tree()
         self._populate_raw_combos()
+        self._populate_graph_checkboxes()
 
     # -- Connection bar -----------------------------------------------------
 
@@ -509,7 +530,12 @@ class SerialTestTool(tk.Tk):
         self.conn_status_var.set(f"{self.port_var.get()} @ {self.baud_var.get()}")
         self.conn_status_lbl.config(foreground="#007a00")
 
+        # If parameters were left ticked from a previous connection, resume logging them
+        if self._graph_selected_ids and not self._graph_running:
+            self._start_graph_polling()
+
     def _disconnect(self) -> None:
+        self._stop_graph_polling()
         if self.reader:
             self.reader.stop()
             self.reader = None
@@ -817,18 +843,365 @@ class SerialTestTool(tk.Tk):
         self._log("suite", f"[{index + 1}/{len(self._edge_cases)}] {case.name} — {'PASS' if ok else 'FAIL'}", tag)
         self._run_next_edge_case(index + 1)
 
+    # -- Bottom notebook (Graph / Log tabs) ----------------------------------
+
+    def _build_bottom_notebook(self) -> None:
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True, padx=10, pady=(4, 10))
+
+        graph_tab = ttk.Frame(notebook)
+        log_tab = ttk.Frame(notebook)
+        notebook.add(graph_tab, text="Live Graph")
+        notebook.add(log_tab, text="Traffic Log")
+
+        self._build_graph_panel(graph_tab)
+        self._build_log_panel(log_tab)
+
+    # -- Live multi-parameter graph ------------------------------------------
+
+    def _build_graph_panel(self, parent: ttk.Frame) -> None:
+        frame = ttk.Frame(parent, padding=(8, 6))
+        frame.pack(fill="both", expand=True)
+
+        controls = ttk.Frame(frame)
+        controls.pack(side="left", fill="y", padx=(0, 8))
+
+        ttk.Label(controls, text="Tick a parameter to log & graph it").pack(anchor="w")
+
+        list_container = ttk.Frame(controls, relief="sunken", borderwidth=1)
+        list_container.pack(fill="both", expand=True)
+
+        list_scrollbar = ttk.Scrollbar(list_container, orient="vertical")
+        self._graph_checkbox_canvas = tk.Canvas(
+            list_container, width=230, highlightthickness=0, background="#1e1e1e",
+            yscrollcommand=list_scrollbar.set,
+        )
+        list_scrollbar.config(command=self._graph_checkbox_canvas.yview)
+        list_scrollbar.pack(side="right", fill="y")
+        self._graph_checkbox_canvas.pack(side="left", fill="both", expand=True)
+
+        self._graph_checkbox_frame = ttk.Frame(self._graph_checkbox_canvas)
+        self._graph_checkbox_canvas.create_window((0, 0), window=self._graph_checkbox_frame, anchor="nw")
+        self._graph_checkbox_frame.bind(
+            "<Configure>",
+            lambda _e: self._graph_checkbox_canvas.configure(
+                scrollregion=self._graph_checkbox_canvas.bbox("all")
+            ),
+        )
+
+        interval_row = ttk.Frame(controls)
+        interval_row.pack(fill="x", pady=(6, 2))
+        ttk.Label(interval_row, text="Poll (ms)").pack(side="left")
+        self.graph_interval_var = tk.StringVar(value="100")
+        ttk.Entry(interval_row, textvariable=self.graph_interval_var, width=6).pack(side="left", padx=(4, 0))
+
+        window_row = ttk.Frame(controls)
+        window_row.pack(fill="x", pady=(2, 6))
+        ttk.Label(window_row, text="Window (s)").pack(side="left")
+        self.graph_window_var = tk.StringVar(value="30")
+        ttk.Entry(window_row, textvariable=self.graph_window_var, width=6).pack(side="left", padx=(4, 0))
+
+        ttk.Button(controls, text="Clear data", command=self._clear_graph).pack(fill="x")
+
+        ttk.Label(controls, text="Latest values").pack(anchor="w", pady=(8, 0))
+        self.graph_legend = tk.Text(
+            controls, height=9, width=26, state="disabled", font=("Consolas", 9),
+            background="#1e1e1e", foreground="#e0e0e0", relief="flat"
+        )
+        self.graph_legend.pack(fill="both", expand=True, pady=(2, 0))
+
+        self.graph_canvas = tk.Canvas(frame, background="#101010", highlightthickness=0)
+        self.graph_canvas.pack(side="left", fill="both", expand=True)
+        self.graph_canvas.bind("<Configure>", lambda _e: self._redraw_graph())
+
+    def _populate_graph_checkboxes(self) -> None:
+        # New protocol/param set invalidates whatever was ticked before
+        self._stop_graph_polling()
+        self._graph_selected_ids = []
+        self._graph_data = {}
+        self._graph_colors = {}
+        self._graph_swatches = {}
+
+        for child in self._graph_checkbox_frame.winfo_children():
+            child.destroy()
+        self._graph_checkbox_vars = {}
+
+        for p in sorted(self.proto.params_by_id.values(), key=lambda x: x.id):
+            if not p.readable:
+                continue
+
+            var = tk.BooleanVar(value=False)
+            self._graph_checkbox_vars[p.id] = var
+
+            row = ttk.Frame(self._graph_checkbox_frame)
+            row.pack(fill="x", anchor="w")
+
+            swatch = tk.Canvas(row, width=10, height=10, highlightthickness=0, background="#1e1e1e")
+            swatch.pack(side="left", padx=(2, 4), pady=3)
+            self._graph_swatches[p.id] = swatch
+
+            ttk.Checkbutton(
+                row, text=f"0x{p.id:02X}  {p.name}", variable=var,
+                command=lambda pid=p.id: self._on_param_checkbox_toggle(pid),
+            ).pack(side="left", anchor="w")
+
+        self._update_legend()
+
+    def _on_param_checkbox_toggle(self, pid: int) -> None:
+        var = self._graph_checkbox_vars.get(pid)
+        if var is None:
+            return
+
+        if var.get():
+            if not self._require_ready():
+                var.set(False)
+                return
+
+            if pid not in self._graph_selected_ids:
+                self._graph_selected_ids.append(pid)
+            self._graph_data.setdefault(pid, deque())
+            if pid not in self._graph_colors:
+                self._graph_colors[pid] = GRAPH_COLORS[len(self._graph_colors) % len(GRAPH_COLORS)]
+
+            swatch = self._graph_swatches.get(pid)
+            if swatch is not None:
+                swatch.configure(background=self._graph_colors[pid])
+
+            if not self._graph_running:
+                self._start_graph_polling()
+        else:
+            if pid in self._graph_selected_ids:
+                self._graph_selected_ids.remove(pid)
+
+            swatch = self._graph_swatches.get(pid)
+            if swatch is not None:
+                swatch.configure(background="#1e1e1e")
+
+            if not self._graph_selected_ids:
+                self._stop_graph_polling()
+
+        self._update_legend()
+        self._redraw_graph()
+
+    def _start_graph_polling(self) -> None:
+        try:
+            interval_ms = max(20, int(self.graph_interval_var.get()))
+        except ValueError:
+            interval_ms = 100
+            self.graph_interval_var.set("100")
+        self._graph_interval_ms = interval_ms
+
+        self._graph_running = True
+        if self._graph_start_time is None:
+            self._graph_start_time = time.monotonic()
+        self._graph_poll_index = 0
+        self._graph_poll_tick()
+
+    def _stop_graph_polling(self) -> None:
+        self._graph_running = False
+        if self._graph_after_id is not None:
+            try:
+                self.after_cancel(self._graph_after_id)
+            except ValueError:
+                pass
+            self._graph_after_id = None
+
+    def _graph_poll_tick(self) -> None:
+        if not self._graph_running:
+            return
+        if self.ser is None or not self._board_ready:
+            self._stop_graph_polling()
+            return
+
+        if self._graph_selected_ids:
+            # Round-robin one GET per tick so the MCU never has more than one
+            # outstanding request — sending all params at once could exceed
+            # the firmware's per-byte timeout budget on a busy link.
+            pid = self._graph_selected_ids[self._graph_poll_index % len(self._graph_selected_ids)]
+            self._graph_poll_index += 1
+            try:
+                self._transmit(build_get(self.proto, pid))
+            except (serial.SerialException, OSError):
+                self._stop_graph_polling()
+                return
+
+        # Re-read the interval each tick so a mid-run edit takes effect immediately
+        try:
+            interval_ms = max(20, int(self.graph_interval_var.get()))
+        except ValueError:
+            interval_ms = self._graph_interval_ms
+        self._graph_interval_ms = interval_ms
+
+        self._graph_after_id = self.after(self._graph_interval_ms, self._graph_poll_tick)
+
+    def _clear_graph(self) -> None:
+        self._graph_data = {pid: deque() for pid in self._graph_selected_ids}
+        self._graph_start_time = time.monotonic() if self._graph_running else None
+        self._redraw_graph()
+        self._update_legend()
+
+    def _on_frame_received(self, info: FrameInfo) -> None:
+        if not self._graph_running:
+            return
+        if info.msg_name != "CMD_GET" or len(info.payload) < 5:
+            return
+
+        pid = info.payload[0]
+        if pid not in self._graph_selected_ids:
+            return
+
+        try:
+            value = struct.unpack("<f", info.payload[1:5])[0]
+        except struct.error:
+            return
+
+        now = time.monotonic()
+        if self._graph_start_time is None:
+            self._graph_start_time = now
+        t = now - self._graph_start_time
+
+        data = self._graph_data.setdefault(pid, deque())
+        data.append((t, value))
+
+        try:
+            window_s = max(1.0, float(self.graph_window_var.get()))
+        except ValueError:
+            window_s = 30.0
+        cutoff = t - window_s
+        while data and data[0][0] < cutoff:
+            data.popleft()
+
+        self._redraw_graph()
+        self._update_legend()
+
+    def _redraw_graph(self) -> None:
+        canvas = self.graph_canvas
+        canvas.delete("all")
+        width = canvas.winfo_width()
+        height = canvas.winfo_height()
+        if width < 20 or height < 20:
+            return
+
+        margin_l, margin_r, margin_t, margin_b = 48, 12, 12, 22
+        plot_w = max(1, width - margin_l - margin_r)
+        plot_h = max(1, height - margin_t - margin_b)
+
+        # Axes
+        canvas.create_rectangle(
+            margin_l, margin_t, margin_l + plot_w, margin_t + plot_h, outline="#333"
+        )
+        for frac in (0.0, 0.25, 0.5, 0.75, 1.0):
+            y = margin_t + plot_h - frac * plot_h
+            canvas.create_line(margin_l, y, margin_l + plot_w, y, fill="#222")
+            canvas.create_text(margin_l - 6, y, text=f"{frac:.2f}", fill="#777", anchor="e", font=("Consolas", 8))
+
+        try:
+            window_s = max(1.0, float(self.graph_window_var.get()))
+        except ValueError:
+            window_s = 30.0
+
+        if not self._graph_selected_ids:
+            canvas.create_text(
+                margin_l + plot_w / 2, margin_t + plot_h / 2,
+                text="Tick a parameter on the left to start logging",
+                fill="#666", font=("Consolas", 10),
+            )
+            return
+
+        now_t = 0.0
+        have_data = False
+        for pid in self._graph_selected_ids:
+            data = self._graph_data.get(pid)
+            if data:
+                have_data = True
+                now_t = max(now_t, data[-1][0])
+
+        if not have_data:
+            canvas.create_text(
+                margin_l + plot_w / 2, margin_t + plot_h / 2,
+                text="Waiting for data…", fill="#666", font=("Consolas", 10),
+            )
+            return
+
+        t_min = now_t - window_s
+
+        # Determine global visible range
+        global_min = float("inf")
+        global_max = float("-inf")
+
+        for pid in self._graph_selected_ids:
+            data = self._graph_data.get(pid)
+            if not data:
+                continue
+
+            for t, v in data:
+                if t >= t_min:
+                    global_min = min(global_min, v)
+                    global_max = max(global_max, v)
+
+        if global_min == float("inf"):
+            return
+
+        if abs(global_max - global_min) < 1e-6:
+            global_max += 1.0
+            global_min -= 1.0
+
+        for pid in self._graph_selected_ids:
+            data = self._graph_data.get(pid)
+            if not data or len(data) < 2:
+                continue
+
+            vmin = global_min
+            vmax = global_max
+
+            color = self._graph_colors.get(pid, "#00AAFF")
+            flat: list[float] = []
+            for t, v in data:
+                if t < t_min:
+                    continue
+                x = margin_l + ((t - t_min) / window_s) * plot_w
+                norm = (v - vmin) / (vmax - vmin)
+                norm = min(1.0, max(0.0, norm))
+                y = margin_t + plot_h - norm * plot_h
+                flat.extend((x, y))
+            if len(flat) >= 4:
+                canvas.create_line(*flat, fill=color, width=2)
+
+        canvas.create_text(
+            margin_l + plot_w, margin_t + plot_h + 10,
+            text=f"last {window_s:.0f}s (normalised to each parameter's min/max)",
+            fill="#666", anchor="e", font=("Consolas", 8),
+        )
+
+    def _update_legend(self) -> None:
+        if not hasattr(self, "graph_legend"):
+            return
+        self.graph_legend.config(state="normal")
+        self.graph_legend.delete("1.0", "end")
+        for pid in self._graph_selected_ids:
+            param = self.proto.params_by_id.get(pid) if self.proto else None
+            name = param.name if param else f"0x{pid:02X}"
+            unit = f" {param.unit}" if param and param.unit else ""
+            data = self._graph_data.get(pid)
+            latest = f"{data[-1][1]:.3f}{unit}" if data else "—"
+            color = self._graph_colors.get(pid, "#00AAFF")
+            tag = f"legend_{pid}"
+            self.graph_legend.tag_configure(tag, foreground=color)
+            self.graph_legend.insert("end", f"\u25CF {name}: {latest}\n", tag)
+        self.graph_legend.config(state="disabled")
+
     # -- Log panel ----------------------------------------------------------
 
-    def _build_log_panel(self) -> None:
-        frame = ttk.LabelFrame(self, text="Traffic log", padding=(8, 6))
-        frame.pack(fill="both", expand=True, padx=10, pady=(4, 10))
+    def _build_log_panel(self, parent: ttk.Frame) -> None:
+        frame = ttk.Frame(parent, padding=(8, 6))
+        frame.pack(fill="both", expand=True)
 
         toolbar = ttk.Frame(frame)
         toolbar.pack(fill="x", pady=(0, 4))
         ttk.Button(toolbar, text="Clear", command=self._clear_log).pack(side="right")
 
         self.log_text = scrolledtext.ScrolledText(
-            frame, height=14, font=LOG_FONT, state="disabled", wrap="none"
+            frame, height=10, font=LOG_FONT, state="disabled", wrap="none"
         )
         self.log_text.pack(fill="both", expand=True)
         for tag, color in (
@@ -938,6 +1311,7 @@ class SerialTestTool(tk.Tk):
                             info = parse_frame(self.proto, frame)
                             if info is not None:
                                 self._recent_frames.append((time.monotonic(), info))
+                                self._on_frame_received(info)
                             tag = "nack" if info and info.msg_name == "NACK" else "rx"
                             self._log("rx", f"{hexdump(frame):<36}  {decode_frame(self.proto, frame)}", tag)
                 elif kind == "error":
@@ -951,6 +1325,7 @@ class SerialTestTool(tk.Tk):
         self.after(50, self._poll_rx_queue)
 
     def _on_close(self) -> None:
+        self._stop_graph_polling()
         self._disconnect()
         self.destroy()
 

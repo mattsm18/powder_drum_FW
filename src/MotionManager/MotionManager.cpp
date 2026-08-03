@@ -6,67 +6,109 @@ MotionManager::MotionManager()
     :
     _encoder(),
     _motor(
-        TB6600_DRIVER_A_PUL, TB6600_DRIVER_A_DIR, TB6600_DRIVER_A_ENA,
-        Microstep::THIRTY_SECOND, 200, ISR_FREQ_HZ
+        TB6600_DRIVER_A_PUL,
+        TB6600_DRIVER_A_DIR,
+        TB6600_DRIVER_A_ENA,
+        Microstep::THIRTY_SECOND,
+        200,
+        STEPPER_TICK_ISR_FREQ_HZ
     ),
-    _filter(VELOCITY_FILTER_TIME_CONST),
-    _controller(KP, KI, KD)
-{}
+    _controller(KP, KI, KD, INTEGRAL_LIMIT, OUTPUT_LIMIT),
+    _filter(EMA_FILTER_TIME_CONST)
+{
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionManager::begin() {
-
-    // Ensure a clean starting state -- no stale integral, no stale dt/theta seed
+void MotionManager::begin()
+{
     _controller.reset();
     _filter.reset();
+    _thetaIndex = 0;
+    _thetaBufferFilled = false;
+
+    for (uint8_t i = 0; i < VELOCITY_ESTIMATION_WINDOW; i++)
+    {
+        _thetaBuffer[i] = 0.0f;
+    }
+
     _estimatorInitialised = false;
-    _lastMicros = 0;
+    _measuredVelocity = 0.0f;
+    _lastControlMicros = 0;
+    _encoder.begin();
 
     enableMotor();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionManager::update() {
-
+// Update the motion loop at MOTION_LOOP_FREQ_HZ
+void MotionManager::update()
+{   
+    //_motor.setAngularVelocity(20.0);
+    // Timing (Enter loop only at MOTION_LOOP_PERIOD_US)
     uint32_t now = micros();
-
-    // First call (or just re-enabled) -- seed timing + encoder state, nothing to
-    // differentiate against yet
-    if (!_estimatorInitialised) {
+    if (now - _lastControlMicros < MOTION_LOOP_PERIOD_US) return;
+    _lastControlMicros = now;
+    
+    // Initialise estimator on first run
+    if (!_estimatorInitialised)
+    {
         _thetaPrev = _encoder.getAngleRadians();
         _estimatorInitialised = true;
-        _lastMicros = now;
+        _measuredVelocity = 0.0f;
         return;
     }
+    
+    _measuredVelocity = _estimateEncoderVelocity();
 
-    float dt = (now - _lastMicros) * 1e-6f;
-    _lastMicros = now;
-
-    if (dt <= 0.0f) { return; } // guard against a degenerate/duplicate timer read
-
-    // --- Velocity Estimation ---
-    float theta = _encoder.getAngleRadians();
-    float dTheta = theta - _thetaPrev;
-
-    // Handle wraparound (jump from 2*PI -> 0 and 0 -> 2*PI)
-    if (dTheta >  PI) dTheta -= 2.0f * PI;
-    if (dTheta < -PI) dTheta += 2.0f * PI;
-
-    float rawVelocity = dTheta / dt;
-    _thetaPrev = theta;
-
-    float measuredVelocity = _filter.update(rawVelocity, dt);
-
-    // --- Setpoint Ramp ---
+    // Setpoint ramp
     float delta = _setpoint - _rampedSetpoint;
-    float maxStep = _accelRate * dt;
+    float maxStep = _accelRate * MOTION_LOOP_DT;
     _rampedSetpoint += constrain(delta, -maxStep, maxStep);
 
-    // --- Closed-Loop Control ---
-    float error = _rampedSetpoint - measuredVelocity;
-    float output = _controller.update(error, dt);
+    // Closed-loop control
+    float error = _rampedSetpoint - _measuredVelocity;
+    float correction = _controller.update(error, MOTION_LOOP_DT);
+    float commandedVelocity = _rampedSetpoint + correction;
+    
+   
+}
 
-    _motor.setAngularVelocity(output);
+float MotionManager::_estimateEncoderVelocity()
+{
+    static const float MAX_PLAUSIBLE_VELOCITY = 60.0f;
+
+    float theta = _encoder.getAngleRadians();
+
+    // Not enough history yet
+    if (!_thetaBufferFilled)
+    {
+        _thetaBuffer[_thetaIndex++] = theta;
+
+        if (_thetaIndex >= VELOCITY_ESTIMATION_WINDOW)
+        {
+            _thetaIndex = 0;
+            _thetaBufferFilled = true;
+        }
+
+        return 0.0f;
+    }
+
+    float thetaOld = _thetaBuffer[_thetaIndex];
+
+    // Replace oldest with newest
+    _thetaBuffer[_thetaIndex] = theta;
+    _thetaIndex = (_thetaIndex + 1) % VELOCITY_ESTIMATION_WINDOW;
+
+    float dTheta = theta - thetaOld;
+
+    // Wraparound correction
+    if (dTheta > PI)  dTheta -= 2.0f * PI;
+    if (dTheta < -PI) dTheta += 2.0f * PI;
+
+    float velocity = dTheta / (VELOCITY_ESTIMATION_WINDOW * MOTION_LOOP_DT);
+
+    if (fabsf(velocity) > MAX_PLAUSIBLE_VELOCITY){ return _measuredVelocity; }
+    return _filter.update(velocity, MOTION_LOOP_DT);
 }

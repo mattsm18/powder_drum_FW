@@ -10,7 +10,9 @@ public:
     (
         float kP, 
         float kI, 
-        float kDq
+        float kD,
+        float integralLimit,
+        float outputLimit
     );
 
     //*** Methods ***/
@@ -21,11 +23,15 @@ public:
     void setKp(float kP);
     void setKi(float kI);
     void setKd(float kD);
+    void setIntegralLimit(float integralLimit);
+    void setOutputLimit(float outputLimit);
 
     // Getters
     float getKp()             { return _kP; }
     float getKi()             { return _kI; }
     float getKd()             { return _kD; }
+    float getIntegralLimit()  { return _integralLimit; }
+    float getOutputLimit()    { return _outputLimit; }
 
 private:
     float _kP;
@@ -33,6 +39,8 @@ private:
     float _kD;
     float _integral;
     float _prevError;
+    float _integralLimit;
+    float _outputLimit;
 };
 
 #endif

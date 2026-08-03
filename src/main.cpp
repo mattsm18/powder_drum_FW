@@ -48,11 +48,11 @@ void mapSerialParameters()
 {
     serial.onSet([](uint8_t parameterID, float value) {
         switch (parameterID) {
-            case ParamID::TARGETANGULARVELOCITY: motion.setTargetVelocity(value); break;
-            case ParamID::ACCELERATIONRATE:      motion.setAccelRate(value);      break;
-            case ParamID::PIDPROPORTIONALGAIN:   motion.setKp(value);             break;
-            case ParamID::PIDINTEGRALGAIN:       motion.setKi(value);             break;
-            case ParamID::PIDDERIVATIVEGAIN:     motion.setKd(value);             break;
+            case ParamID::SETPOINTANGULARVELOCITY:  motion.setSetpointAngularVelocity(value);   break;
+            case ParamID::ACCELERATIONRATE:         motion.setAccelRate(value);                 break;
+            case ParamID::PIDPROPORTIONALGAIN:      motion.setKp(value);                        break;
+            case ParamID::PIDINTEGRALGAIN:          motion.setKi(value);                        break;
+            case ParamID::PIDDERIVATIVEGAIN:        motion.setKd(value);                        break;
             case ParamID::TOGGLELIGHTS:
                 lightState = value;
                 digitalWrite(RELAY_OUTPUT_B, lightState > 0.0f ? HIGH : LOW);
@@ -63,7 +63,7 @@ void mapSerialParameters()
     serial.onGet([](uint8_t parameterID) -> float {
         switch (parameterID) {
             case ParamID::PROTOCOLVERSION:        return SERIAL_PROTOCOL_VERSION;
-            case ParamID::TARGETANGULARVELOCITY:  return motion.getTargetVelocity();
+            case ParamID::SETPOINTANGULARVELOCITY:return motion.getSetpointAngularVelocity();
             case ParamID::ACCELERATIONRATE:       return motion.getAccelRate();
             case ParamID::PIDPROPORTIONALGAIN:    return motion.getKp();
             case ParamID::PIDINTEGRALGAIN:        return motion.getKi();
@@ -84,7 +84,7 @@ void setupISR()
 {
     cli();  
     TCB0.CTRLB   = TCB_CNTMODE_INT_gc;                      // Periodic interrupt mode (CTC-equivalent)
-    TCB0.CCMP    = (F_CPU / ISR_FREQ_HZ) - 1;               // Period/compare value
+    TCB0.CCMP    = (F_CPU / STEPPER_TICK_ISR_FREQ_HZ) - 1;  // Period/compare value
     TCB0.INTCTRL = TCB_CAPT_bm;                             // Enable compare/capture interrupt
     TCB0.CTRLA   = TCB_CLKSEL_CLKDIV1_gc | TCB_ENABLE_bm;   // Start timer, no prescale (clk/1)
     sei();

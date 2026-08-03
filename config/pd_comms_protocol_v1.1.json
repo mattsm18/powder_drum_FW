@@ -42,7 +42,7 @@
              "min": 0.0, "max": 10.0, "unit": "", "group": "system"
          },
         {
-            "id": "0x01", "name": "targetAngularVelocity", "label": "Target Speed",
+            "id": "0x01", "name": "setpointAngularVelocity", "label": "Target Speed",
             "access": ["r", "w"], "type": "float", "default": 0.0,
             "min": 0.0, "max": 40.0, "unit": "rad/s", "group": "controller"
         },
@@ -51,7 +51,7 @@
             "access": ["r", "w"], "type": "float", "default": 5.0,
             "min": 0.1, "max": 40.0, "unit": "rad/s^2", "group": "controller"
         },
-                {
+        {
             "id": "0x10", "name": "PIDproportionalGain", "label": "PID Proportional Gain",
             "access": ["r", "w"], "type": "float", "default": 1.0,
             "min": 0.0, "max": 20.0, "unit": "", "group": "controller"
@@ -83,8 +83,8 @@
         },
         {
             "id": "0x30", "name": "motorAngularVelocity", "label": "Commanded Speed (motor)",
-            "access": ["r"], "type": "float", "default": 0.0,
-            "min": -100.0, "max": 100.0, "unit": "degrees", "group": "encoder"
+            "access": ["r", "w"], "type": "float", "default": 0.0,
+            "min": -100.0, "max": 100.0, "unit": "rad/s", "group": "motor"
         },
         {
             "id": "0x40", "name": "toggleLights", "label": "Toggle Lights",
