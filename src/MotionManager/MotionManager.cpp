@@ -33,7 +33,7 @@ void MotionManager::update()
 
 void MotionManager::updateControlLoop()
 {
-    _measuredVelocity = _encoder.getAngularVelocityRadS();
+    _measuredVelocity = -1.0f * _encoder.getAngularVelocityRadS();  // Sign flip
 
     // Ramp toward the commanded setpoint rather than stepping onto it directly
     float delta = _setpointVelocity - _rampedSetpoint;
