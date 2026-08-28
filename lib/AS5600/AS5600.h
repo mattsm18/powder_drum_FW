@@ -1,104 +1,231 @@
-/*
-    AS5600.h
-
-    Lightweight AS5600 driver for closed-loop motor control.
-
-    Features:
-    - Raw angle reading
-    - Filtered angle reading (degrees/radians)
-    - Magnet detection
-    - Configurable internal digital filters
-    - Windowed velocity estimation (wide-dt differentiation for low quantization noise)
-
-    Matthew Smith
-*/
-
-#ifndef AS5600_H
-#define AS5600_H
+#pragma once
 
 #include <Arduino.h>
-#include <Wire.h>
+#include "AsyncTWI.h"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// AS5600 Magnetic Rotary Encoder
+//
+// All I2C communication is performed through AsyncTWI.
+//
+// IMPORTANT:
+// update() is completely non-blocking. It never waits for an I2C transaction
+// to complete.
+//
+// The caller should call update() continuously from the main loop.
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 class AS5600
 {
 public:
 
-    // Filter Configuration
-    enum class SlowFilter : uint8_t
-    {
-        X16 = 0b00,   // Lowest noise, highest latency
-        X8  = 0b01,
-        X4  = 0b10,
-        X2  = 0b11    // Lowest latency, highest noise
-    };
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // AS5600 registers
+    ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    /// Fast filter threshold
-    enum class FastFilterThreshold : uint8_t
-    {
-        Disabled = 0b000,
-        LSB6     = 0b001,
-        LSB7     = 0b010,
-        LSB9     = 0b011,
-        LSB18    = 0b100,
-        LSB21    = 0b101,
-        LSB24    = 0b110,
-        LSB10    = 0b111
-    };
-
-    // Construction
-    // velocityWindow_us: minimum elapsed time between velocity re-computations.
-    // Wider window = lower quantization noise on velocity, higher latency.
-    AS5600(uint8_t address = 0x36, TwoWire& wire = Wire, uint32_t velocityWindow_us = 5000);
-
-    bool begin();
-
-    void configureFilters(SlowFilter slow, FastFilterThreshold fast);
-    bool isMagnetDetected();
-
-    uint16_t getRawAngle();
-    uint16_t getFilteredAngle();
-    float getAngleDegrees();
-    float getAngleRadians();
-    float getAngularVelocityRadS();
-    float getAngularVelocityDegS();
-
-    // Call as often as you like (every tick / every loop) — cheap, handles
-    // wraparound on every call regardless of the velocity window size.
-    void update();
-    void reset();
-
-    // Velocity window configuration
-    void setVelocityWindow(uint32_t window_us) { _velocityWindow_us = window_us; }
-    uint32_t getVelocityWindow() const         { return _velocityWindow_us; }
-
-private:
-
-    // Fast lookups for conversion
-    static constexpr float DEG_PER_COUNT = 360.0f / 4096.0f;
-    static constexpr float RAD_PER_COUNT = (2.0f * PI) / 4096.0f;
-
-    // Register Map
+    static constexpr uint8_t REG_ZMCO       = 0x00;
+    static constexpr uint8_t REG_ZPOS       = 0x01;
+    static constexpr uint8_t REG_MPOS       = 0x03;
+    static constexpr uint8_t REG_MANG       = 0x05;
     static constexpr uint8_t REG_CONF       = 0x07;
     static constexpr uint8_t REG_STATUS     = 0x0B;
     static constexpr uint8_t REG_RAW_ANGLE  = 0x0C;
     static constexpr uint8_t REG_ANGLE      = 0x0E;
+    static constexpr uint8_t REG_AGC        = 0x1A;
+    static constexpr uint8_t REG_MAGNITUDE  = 0x1B;
 
-    // I2C
-    TwoWire* _wire;
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // AS5600 constants
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    static constexpr uint8_t DEFAULT_ADDRESS = 0x36;
+
+    static constexpr float COUNTS_PER_REV =
+        4096.0f;
+
+    static constexpr float DEG_PER_COUNT =
+        360.0f / COUNTS_PER_REV;
+
+    static constexpr float RAD_PER_COUNT =
+        (2.0f * PI) / COUNTS_PER_REV;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Internal filter configuration
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    enum class SlowFilter : uint8_t
+    {
+        X16 = 0b00,
+        X8  = 0b01,
+        X4  = 0b10,
+        X2  = 0b11
+    };
+
+    enum class FastFilterThreshold : uint8_t
+    {
+        Disabled = 0b00,
+        LSB6      = 0b01,
+        LSB3      = 0b10,
+        LSB1      = 0b11
+    };
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    AS5600(
+        uint8_t address,
+        AsyncTWI& twi,
+        uint32_t velocityWindow_us
+    );
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    bool begin();
+
+    // Call continuously from main loop.
+    // Completely non-blocking.
+    void update();
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Configuration
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    void configureFilters(
+        SlowFilter slow,
+        FastFilterThreshold fast
+    );
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Sensor state
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    bool isReady() const;
+    bool hasValidData() const;
+
+    AsyncTWI::Result getLastResult() const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Angle
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    uint16_t getRawAngle() const;
+    uint16_t getFilteredAngle() const;
+
+    float getAngleDegrees() const;
+    float getAngleRadians() const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Velocity
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    float getAngularVelocityRadS() const;
+    float getAngularVelocityDegS() const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    void reset();
+
+private:
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Async transaction handling
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    enum class Transaction : uint8_t
+    {
+        NONE,
+
+        READ_ANGLE,
+        READ_STATUS,
+
+        READ_CONF,
+        WRITE_CONF
+    };
+
+    void startNextTransaction();
+    void processTransaction();
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Angle processing
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    void processAngle(uint16_t counts);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Configuration
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    uint16_t buildFilterConfig(
+        uint16_t conf,
+        SlowFilter slow,
+        FastFilterThreshold fast
+    ) const;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Async TWI
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    AsyncTWI* _twi;
+
     uint8_t _address;
 
-    // Velocity Estimation
-    uint32_t _velocityWindow_us;       // width of the differentiation window
-    uint16_t _prevCounts = 0;          // last raw counts seen (every update() call)
-    int32_t  _accumCounts = 0;         // unwrapped delta accumulated over the window
+    Transaction _transaction =
+        Transaction::NONE;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // AS5600 data buffers
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    uint8_t _angleBuffer[2] = {0, 0};
+
+    uint8_t _statusBuffer[1] = {0};
+
+    uint8_t _confBuffer[2] = {0, 0};
+
+    uint8_t _writeConfBuffer[2] = {0, 0};
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Sensor state
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    bool _ready = false;
+    bool _validData = false;
+
+    AsyncTWI::Result _lastResult =
+        AsyncTWI::Result::NONE;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Angle state
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    uint16_t _rawAngle = 0;
+    uint16_t _filteredAngle = 0;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Velocity estimator
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    uint32_t _velocityWindow_us;
+
+    bool _velocityInit = false;
+
+    uint16_t _prevCounts = 0;
+
+    int32_t _accumCounts = 0;
+
     uint32_t _windowStartTimestamp_us = 0;
-    float    _angularVelocityRadS = 0.0f;
-    bool     _velocityInit = false;
 
-    // Helpers
-    uint8_t read8(uint8_t reg);
-    uint16_t read16(uint8_t reg);
-    void write16(uint8_t reg, uint16_t value);
+    float _angularVelocityRadS = 0.0f;
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    // Configuration state
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+
+    bool _configureFiltersRequested = false;
+
+    SlowFilter _requestedSlowFilter =
+        SlowFilter::X8;
+
+    FastFilterThreshold _requestedFastFilter =
+        FastFilterThreshold::Disabled;
 };
-
-#endif

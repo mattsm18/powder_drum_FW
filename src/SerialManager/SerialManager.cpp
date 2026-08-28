@@ -6,7 +6,7 @@
 void SerialManager::begin(uint32_t baudRate)
 {
     Serial.begin(baudRate);
-    Serial.println("BOOT");
+    //Serial.println("BOOT");
     _state = SerialState::IDLE;
     _bytesRead = 0;
     _lastByteTime = millis();
@@ -193,10 +193,15 @@ void SerialManager::_onCmdGet(const Packet& packet)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint8_t SerialManager::_computeCRC(const uint8_t* data, uint8_t length)
+uint8_t SerialManager::_computeCRC(const uint8_t* data, size_t length)
 {
-    uint8_t crc = 0x00;
-    for (uint8_t i = 0; i < length; i++) crc ^= data[i];
+    uint8_t crc = 0;
+
+    for (size_t i = 0; i < length; ++i)
+    {
+        crc ^= data[i];
+    }
+
     return crc;
 }
 

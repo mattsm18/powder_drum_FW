@@ -79,6 +79,12 @@
         },
 
         {
+            "id": "0x14", "name": "measuredAngleDegrees", "label": "Measured Angle (Degrees)",
+            "access": ["r"], "type": "float", "default": 0.0,
+            "unit": "rad/s", "group": "motor"
+        },
+
+        {
             "id": "0x15", "name": "measuredVelocity", "label": "Measured Velocity",
             "access": ["r"], "type": "float", "default": 0.0,
             "unit": "rad/s", "group": "motor"

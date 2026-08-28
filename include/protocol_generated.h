@@ -1,6 +1,6 @@
 // ============================================================
-// AUTO-GENERATED FILE — DO NOT EDIT BY HAND
-// Source:    config\pd_comms_protocol_v1.1.json (protocol v1.1)
+// AUTO-GENERATED FILE â€” DO NOT EDIT BY HAND
+// Source:    config/pd_comms_protocol_v1.1.json (protocol v1.1)
 // Generator: scripts/generate_protocol.py
 // Regenerate with: python scripts/generate_protocol.py
 // ============================================================
@@ -69,6 +69,7 @@ namespace ParamID {
     constexpr uint8_t PIDPROPORTIONALGAIN        = 0x10; // PID Proportional Gain [controller]
     constexpr uint8_t PIDINTEGRALGAIN            = 0x11; // PID Integral Gain [controller]
     constexpr uint8_t PIDDERIVATIVEGAIN          = 0x12; // PID Derivative Gain [controller]
+    constexpr uint8_t MEASUREDANGLEDEGREES       = 0x14; // Measured Angle (Degrees) rad/s [motor]  (read-only)
     constexpr uint8_t MEASUREDVELOCITY           = 0x15; // Measured Velocity rad/s [motor]  (read-only)
     constexpr uint8_t CONTROLVELOCITY            = 0x16; // Control Velocity rad/s [motor]  (read-only)
     constexpr uint8_t TOGGLELIGHTS               = 0x40; // Toggle Lights [light]
@@ -92,6 +93,7 @@ const ParamMeta PARAM_TABLE[] PROGMEM = {
     { ParamID::PIDPROPORTIONALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::PIDINTEGRALGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
     { ParamID::PIDDERIVATIVEGAIN, PARAM_TYPE_FLOAT, PARAM_ACCESS_R | PARAM_ACCESS_W },
+    { ParamID::MEASUREDANGLEDEGREES, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
     { ParamID::MEASUREDVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
     { ParamID::CONTROLVELOCITY, PARAM_TYPE_FLOAT, PARAM_ACCESS_R },
     { ParamID::TOGGLELIGHTS, PARAM_TYPE_BOOL, PARAM_ACCESS_R | PARAM_ACCESS_W },

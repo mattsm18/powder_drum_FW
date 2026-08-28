@@ -39,7 +39,7 @@ Note:
 class MotionManager
 {
 public:
-    
+    AsyncTWI twi;
     MotionManager();
     
     /////*** PUBLIC METHODS ***/////
@@ -66,6 +66,7 @@ public:
     
     float getSetpoint()               { return _setpointVelocity; }
     float getRampedSetpoint()         { return _rampedSetpoint; }
+    float getMeasuredAngleDegrees()   { return _measuredAngleDegrees; }
     float getMeasuredVelocity()       { return _measuredVelocity; }
     float getControlVelocity()        { return _controlVelocity; }
     float getAccelRate()              { return _accelRate; }
@@ -73,6 +74,7 @@ public:
 private:
 
     // Hardware
+    
     AS5600 _encoder;
     StepperMotor _motor;
     PIDController _controller;
@@ -80,6 +82,7 @@ private:
     // Setpoint / Motion Profile
     float _setpointVelocity = 0.0f; 
     float _rampedSetpoint = 0.0f;
+    float _measuredAngleDegrees = 0.0f;
     float _measuredVelocity = 0.0f;
     float _controlVelocity = 0.0f;
 

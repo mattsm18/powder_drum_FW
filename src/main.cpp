@@ -42,6 +42,7 @@ void setup() {
 void loop() {
     serial.update();
     motion.update();
+
 }
 
 void mapSerialParameters()
@@ -69,6 +70,7 @@ void mapSerialParameters()
             case ParamID::PIDPROPORTIONALGAIN:    return motion.getKp();
             case ParamID::PIDINTEGRALGAIN:        return motion.getKi();
             case ParamID::PIDDERIVATIVEGAIN:      return motion.getKd();
+            case ParamID::MEASUREDANGLEDEGREES:   return motion.getMeasuredAngleDegrees();
             case ParamID::MEASUREDVELOCITY:       return motion.getMeasuredVelocity();
             case ParamID::CONTROLVELOCITY:        return motion.getControlVelocity();
             case ParamID::TOGGLELIGHTS:           return lightState;
