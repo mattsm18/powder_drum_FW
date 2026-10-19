@@ -30,7 +30,7 @@ Note:
 #define MOTION_DT               (1.0f / MOTION_UPDATE_FREQ_HZ)
 
 // Default Controller Gains
-#define KP 0.01f
+#define KP 0.0f
 #define KI 0.0f
 #define KD 0.0f
 #define INTEGRAL_LIMIT 30.0f   

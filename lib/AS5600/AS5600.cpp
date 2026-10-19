@@ -205,25 +205,21 @@ void AS5600::processAngle(uint16_t counts)
     if (deltaCounts > 2048){ deltaCounts -= 4096; } //cw
     if (deltaCounts < -2048){ deltaCounts += 4096; } //ccw
 
-    // Accumulate movement
     _accumCounts += deltaCounts;
     _prevCounts = counts;
 
-    // Check velocity window
     uint32_t elapsed = now - _windowStartTimestamp_us;
-    if (elapsed < _velocityWindow_us){ return; }
-
-    // Calculate velocity using actual measured time
-    float dt = elapsed * 1e-6f;
-
-    if (dt > 0.0f)
+    if (elapsed >= _velocityWindow_us)
     {
-        _angularVelocityRadS = -(static_cast<float>(_accumCounts) * RAD_PER_COUNT) / dt;
+        float dt = elapsed * 1e-6f;
+        if (dt > 0.0f)
+        {
+            _angularVelocityRadS =
+                -(static_cast<float>(_accumCounts) * RAD_PER_COUNT) / dt;
+        }
+        _accumCounts = 0;
+        _windowStartTimestamp_us = now;
     }
-
-    // Reset velocity window
-    _accumCounts = 0;
-    _windowStartTimestamp_us = now;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -257,7 +253,7 @@ void AS5600::reset()
     _velocityInit = false;
     _prevCounts = 0;
     _accumCounts = 0;
-    _windowStartTimestamp_us = 0; 
+    _windowStartTimestamp_us = 0;
     _angularVelocityRadS = 0.0f;
     _configureFiltersRequested = false;
     _writeConfPending = false;
