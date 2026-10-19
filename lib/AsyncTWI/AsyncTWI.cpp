@@ -286,6 +286,11 @@ void AsyncTWI::update()
 
         case State::START_WRITE:
         {
+            if (!isBusIdle())
+            {
+                return;
+            }
+
             TWI0.MADDR =
                 static_cast<uint8_t>(
                     (_address << 1) & 0xFE
@@ -658,8 +663,7 @@ bool AsyncTWI::isBusy() const
     return
         (_state != State::IDLE &&
          _state != State::COMPLETE &&
-         _state != State::ERROR) ||
-        !isBusIdle();
+         _state != State::ERROR);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

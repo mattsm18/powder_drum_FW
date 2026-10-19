@@ -137,7 +137,7 @@ public:
     // Status
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
-    // Includes the bus finishing a pending STOP after a completed transaction.
+    // Reports active software transactions. START_WRITE waits for bus idle.
     bool isBusy() const;
 
     bool isDone() const;
