@@ -54,6 +54,22 @@ void AS5600::startNextTransaction()
     if (_transaction != Transaction::NONE){ return; }
     if (_twi->isBusy()){ return; }
 
+    if (_writeConfPending)
+    {
+        _transaction = Transaction::WRITE_CONF;
+
+        if (_twi->writeRegisters(_address, REG_CONF, _writeConfBuffer, 2))
+        {
+            _writeConfPending = false;
+        }
+        else
+        {
+            _transaction = Transaction::NONE;
+        }
+
+        return;
+    }
+
     // Filter configuration requested
     if (_configureFiltersRequested)
     {
@@ -90,6 +106,12 @@ void AS5600::processTransaction()
     if (_lastResult != AsyncTWI::Result::OK)
     {
         _validData = false;
+        if (_transaction == Transaction::READ_CONF ||
+            _transaction == Transaction::WRITE_CONF)
+        {
+            _configureFiltersRequested = false;
+            _writeConfPending = false;
+        }
         _transaction = Transaction::NONE;
         _twi->clearDone();
         return;
@@ -113,15 +135,10 @@ void AS5600::processTransaction()
         conf = buildFilterConfig(conf, _requestedSlowFilter, _requestedFastFilter);
         _writeConfBuffer[0] = static_cast<uint8_t>(conf >> 8);
         _writeConfBuffer[1] = static_cast<uint8_t>(conf & 0xFF);
-        _transaction = Transaction::WRITE_CONF;
+        _writeConfPending = true;
+        _transaction = Transaction::NONE;
 
         _twi->clearDone();
-
-        if (!_twi->writeRegisters(_address, REG_CONF, _writeConfBuffer, 2))
-        {
-            _transaction = Transaction::NONE;
-        }
-
         return;
     }
 
@@ -243,4 +260,5 @@ void AS5600::reset()
     _windowStartTimestamp_us = 0; 
     _angularVelocityRadS = 0.0f;
     _configureFiltersRequested = false;
+    _writeConfPending = false;
 }

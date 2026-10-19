@@ -222,6 +222,7 @@ private:
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
     bool _configureFiltersRequested = false;
+    bool _writeConfPending = false;
 
     SlowFilter _requestedSlowFilter =
         SlowFilter::X8;

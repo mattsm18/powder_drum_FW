@@ -9,3 +9,16 @@ in the development cycle.
 
 More information about PlatformIO Unit Testing:
 - https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+AS5600 angle wiring check
+-------------------------
+
+Build and upload the standalone angle test (it does not use Wire.h):
+
+    pio run -e as5600_angle_test -t upload
+    pio device monitor -e as5600_angle_test
+
+The test uses the AS5600 driver and non-blocking AsyncTWI path used by the
+firmware, including the driver's filter setup. At 115200 baud it prints
+`valid`, `angle_deg`, the raw 12-bit angle, and the most recent AsyncTWI result.
+Rotate the magnet/shaft; both the raw count and angle should change.

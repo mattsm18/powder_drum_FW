@@ -37,7 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROTOCOL = REPO_ROOT / "config" / "pd_comms_protocol_v1.1.json"
 BOARD_RESET_SETTLE_MS = 2000
 DEFAULT_TEST_WAIT_MS = 400
-LOG_FONT = ("TkFixedFont", 10)
+LOG_FONT = ("TkFixedFont", 8)
 
 # Official Raspberry Pi 7" touchscreen panel resolution (landscape).
 PI_TOUCHSCREEN_W = 800
@@ -457,34 +457,30 @@ class SerialTestTool(tk.Tk):
         if sys.platform == "win32":
             style.theme_use("vista")
 
-        # Touch-friendly sizing: bigger fonts and bigger hit targets than a
-        # mouse-driven desktop layout needs, since fingers are far less
-        # precise than a pointer on a small fixed panel.
-        base_font = ("TkDefaultFont", 11)
+        # Compact sizing keeps the full tool usable on the fixed 800x480 panel.
+        base_font = ("TkDefaultFont", 9)
         self.option_add("*Font", base_font)
         style.configure(".", font=base_font)
-        style.configure("TButton", padding=(12, 10))
-        style.configure("TCheckbutton", padding=(4, 6))
-        style.configure("TNotebook.Tab", padding=(16, 9), font=("TkDefaultFont", 10, "bold"))
-        style.configure("Treeview", rowheight=30, font=("TkDefaultFont", 10))
-        style.configure("Treeview.Heading", font=("TkDefaultFont", 10, "bold"))
+        style.configure("TButton", padding=(6, 4))
+        style.configure("TCheckbutton", padding=(2, 2))
+        style.configure("TNotebook.Tab", padding=(9, 5), font=("TkDefaultFont", 9, "bold"))
+        style.configure("Treeview", rowheight=22, font=("TkDefaultFont", 9))
+        style.configure("Treeview.Heading", font=("TkDefaultFont", 9, "bold"))
 
-        # Compact variants for the top status bar, where space is tight and
-        # the controls on it are touched rarely (setup, not moment-to-moment use).
-        style.configure("Small.TLabel", font=("TkDefaultFont", 9))
-        style.configure("Small.TButton", padding=(6, 4), font=("TkDefaultFont", 9))
-        style.configure("Small.TEntry", font=("TkDefaultFont", 9))
-        style.configure("Small.TCombobox", font=("TkDefaultFont", 9))
+        style.configure("Small.TLabel", font=("TkDefaultFont", 8))
+        style.configure("Small.TButton", padding=(4, 2), font=("TkDefaultFont", 8))
+        style.configure("Small.TEntry", font=("TkDefaultFont", 8))
+        style.configure("Small.TCombobox", font=("TkDefaultFont", 8))
 
     # -- Top status bar (protocol + connection) ------------------------------
 
     def _build_top_bar(self, initial_protocol: Path) -> None:
-        bar = ttk.Frame(self, padding=(6, 4))
+        bar = ttk.Frame(self, padding=(5, 3))
         bar.grid(row=0, column=0, sticky="ew")
 
         # -- Protocol row --
         proto_row = ttk.Frame(bar)
-        proto_row.pack(fill="x", pady=(0, 3))
+        proto_row.pack(fill="x", pady=(0, 2))
         proto_row.columnconfigure(0, weight=1)
 
         self.protocol_path_var = tk.StringVar(value=str(initial_protocol))
@@ -509,7 +505,7 @@ class SerialTestTool(tk.Tk):
         ttk.Label(conn_row, text="Port", style="Small.TLabel").pack(side="left")
         self.port_var = tk.StringVar()
         self.port_combo = ttk.Combobox(
-            conn_row, textvariable=self.port_var, width=13, state="readonly", style="Small.TCombobox"
+            conn_row, textvariable=self.port_var, width=11, state="readonly", style="Small.TCombobox"
         )
         self.port_combo.pack(side="left", padx=(4, 4))
         ttk.Button(conn_row, text="\u21bb", width=3, style="Small.TButton", command=self._refresh_ports).pack(
@@ -628,7 +624,7 @@ class SerialTestTool(tk.Tk):
     # -- Parameters + raw packet --------------------------------------------
 
     def _build_params_tab(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, padding=8)
+        frame = ttk.Frame(parent, padding=5)
         frame.pack(fill="both", expand=True)
 
         columns = ("id", "name", "access", "type", "unit", "group")
@@ -647,7 +643,7 @@ class SerialTestTool(tk.Tk):
         self.param_frame.bind("<Configure>", self._resize_param_tree)
 
         actions = ttk.Frame(frame)
-        actions.pack(fill="x", pady=(10, 0))
+        actions.pack(fill="x", pady=(5, 0))
         ttk.Label(actions, text="Value").pack(side="left")
         self.param_value_var = tk.StringVar(value="0.0")
         ttk.Entry(actions, textvariable=self.param_value_var, width=12).pack(side="left", padx=(6, 12))
@@ -655,42 +651,42 @@ class SerialTestTool(tk.Tk):
         ttk.Button(actions, text="SET", command=self._send_set).pack(side="left")
 
     def _build_raw_tab(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, padding=12)
+        frame = ttk.Frame(parent, padding=7)
         frame.pack(fill="both", expand=True)
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
 
-        ttk.Label(frame, text="Message").grid(row=0, column=0, sticky="w", pady=6, padx=(0, 8))
+        ttk.Label(frame, text="Message").grid(row=0, column=0, sticky="w", pady=3, padx=(0, 6))
         self.raw_msgid_var = tk.StringVar()
         self.raw_msgid_combo = ttk.Combobox(frame, textvariable=self.raw_msgid_var, state="readonly")
-        self.raw_msgid_combo.grid(row=0, column=1, sticky="ew", pady=6, padx=(0, 20))
+        self.raw_msgid_combo.grid(row=0, column=1, sticky="ew", pady=3, padx=(0, 12))
 
-        ttk.Label(frame, text="Direction").grid(row=0, column=2, sticky="w", pady=6, padx=(0, 8))
+        ttk.Label(frame, text="Direction").grid(row=0, column=2, sticky="w", pady=3, padx=(0, 6))
         self.raw_dir_var = tk.StringVar()
         self.raw_dir_combo = ttk.Combobox(frame, textvariable=self.raw_dir_var, state="readonly")
-        self.raw_dir_combo.grid(row=0, column=3, sticky="ew", pady=6)
+        self.raw_dir_combo.grid(row=0, column=3, sticky="ew", pady=3)
 
-        ttk.Label(frame, text="Payload (hex)").grid(row=1, column=0, sticky="w", pady=6, padx=(0, 8))
+        ttk.Label(frame, text="Payload (hex)").grid(row=1, column=0, sticky="w", pady=3, padx=(0, 6))
         self.raw_payload_var = tk.StringVar(value="20 00 00 80 3F")
         ttk.Entry(frame, textvariable=self.raw_payload_var).grid(
-            row=1, column=1, columnspan=3, sticky="ew", pady=6
+            row=1, column=1, columnspan=3, sticky="ew", pady=3
         )
 
-        ttk.Label(frame, text="Version").grid(row=2, column=0, sticky="w", pady=6, padx=(0, 8))
+        ttk.Label(frame, text="Version").grid(row=2, column=0, sticky="w", pady=3, padx=(0, 6))
         self.raw_version_var = tk.StringVar()
-        ttk.Entry(frame, textvariable=self.raw_version_var, width=8).grid(row=2, column=1, sticky="w", pady=6)
+        ttk.Entry(frame, textvariable=self.raw_version_var, width=8).grid(row=2, column=1, sticky="w", pady=3)
 
-        ttk.Label(frame, text="Length").grid(row=2, column=2, sticky="w", pady=6, padx=(0, 8))
+        ttk.Label(frame, text="Length").grid(row=2, column=2, sticky="w", pady=3, padx=(0, 6))
         self.raw_length_var = tk.StringVar()
-        ttk.Entry(frame, textvariable=self.raw_length_var, width=8).grid(row=2, column=3, sticky="w", pady=6)
+        ttk.Entry(frame, textvariable=self.raw_length_var, width=8).grid(row=2, column=3, sticky="w", pady=3)
 
         self.corrupt_crc_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(frame, text="Corrupt CRC", variable=self.corrupt_crc_var).grid(
-            row=3, column=0, columnspan=4, sticky="w", pady=(10, 6)
+            row=3, column=0, columnspan=4, sticky="w", pady=(5, 3)
         )
 
         ttk.Button(frame, text="Send Raw Packet", command=self._send_raw).grid(
-            row=4, column=0, columnspan=4, sticky="ew", pady=(12, 0), ipady=6
+            row=4, column=0, columnspan=4, sticky="ew", pady=(6, 0), ipady=3
         )
 
     def _resize_param_tree(self, _event: tk.Event | None = None) -> None:
@@ -735,7 +731,7 @@ class SerialTestTool(tk.Tk):
     # -- Edge-case suite ----------------------------------------------------
 
     def _build_tests_tab(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, padding=20)
+        frame = ttk.Frame(parent, padding=8)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(
@@ -746,16 +742,16 @@ class SerialTestTool(tk.Tk):
                 "Results are written to the Traffic Log tab."
             ),
             justify="center",
-        ).pack(pady=(0, 18))
+        ).pack(pady=(0, 7))
 
         ttk.Button(
             frame, text="Run Edge-Case Suite", command=self._run_edge_case_suite
-        ).pack(ipadx=24, ipady=12)
+        ).pack(ipadx=10, ipady=4)
 
         self.suite_status_var = tk.StringVar(value="Not run yet")
         ttk.Label(
-            frame, textvariable=self.suite_status_var, font=("TkDefaultFont", 12, "bold")
-        ).pack(pady=(18, 0))
+            frame, textvariable=self.suite_status_var, font=("TkDefaultFont", 10, "bold")
+        ).pack(pady=(7, 0))
 
     def _pick_param(self, *, writable: bool | None) -> Param | None:
         for p in self.proto.params_by_id.values():
@@ -945,7 +941,7 @@ class SerialTestTool(tk.Tk):
 
     def _build_notebook(self) -> None:
         notebook = ttk.Notebook(self)
-        notebook.grid(row=1, column=0, sticky="nsew", padx=6, pady=(2, 6))
+        notebook.grid(row=1, column=0, sticky="nsew", padx=4, pady=(1, 4))
         self.notebook = notebook
 
         params_tab = ttk.Frame(notebook)
@@ -970,12 +966,12 @@ class SerialTestTool(tk.Tk):
     # -- Live multi-parameter graph ------------------------------------------
 
     def _build_graph_panel(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, padding=(8, 6))
+        frame = ttk.Frame(parent, padding=(5, 4))
         frame.pack(fill="both", expand=True)
 
         controls = ttk.Frame(frame)
         controls.pack(side="left", fill="y", padx=(0, 6))
-        controls.configure(width=190)
+        controls.configure(width=180)
 
         ttk.Label(controls, text="Tick a parameter to log & graph it").pack(anchor="w")
 
@@ -984,7 +980,7 @@ class SerialTestTool(tk.Tk):
 
         list_scrollbar = ttk.Scrollbar(list_container, orient="vertical")
         self._graph_checkbox_canvas = tk.Canvas(
-            list_container, width=190, highlightthickness=0, background="#1e1e1e",
+            list_container, width=180, highlightthickness=0, background="#1e1e1e",
             yscrollcommand=list_scrollbar.set,
         )
         list_scrollbar.config(command=self._graph_checkbox_canvas.yview)
@@ -1001,22 +997,22 @@ class SerialTestTool(tk.Tk):
         )
 
         interval_row = ttk.Frame(controls)
-        interval_row.pack(fill="x", pady=(6, 2))
+        interval_row.pack(fill="x", pady=(4, 1))
         ttk.Label(interval_row, text="Poll (ms)").pack(side="left")
         self.graph_interval_var = tk.StringVar(value="100")
         ttk.Entry(interval_row, textvariable=self.graph_interval_var, width=6).pack(side="left", padx=(4, 0))
 
         window_row = ttk.Frame(controls)
-        window_row.pack(fill="x", pady=(2, 6))
+        window_row.pack(fill="x", pady=(1, 4))
         ttk.Label(window_row, text="Window (s)").pack(side="left")
         self.graph_window_var = tk.StringVar(value="30")
         ttk.Entry(window_row, textvariable=self.graph_window_var, width=6).pack(side="left", padx=(4, 0))
 
         ttk.Button(controls, text="Clear data", command=self._clear_graph).pack(fill="x")
 
-        ttk.Label(controls, text="Latest values").pack(anchor="w", pady=(8, 0))
+        ttk.Label(controls, text="Latest values").pack(anchor="w", pady=(5, 0))
         self.graph_legend = tk.Text(
-            controls, height=6, width=22, state="disabled", font=("TkFixedFont", 9),
+            controls, height=4, width=22, state="disabled", font=("TkFixedFont", 8),
             background="#1e1e1e", foreground="#e0e0e0", relief="flat"
         )
         self.graph_legend.pack(fill="both", expand=True, pady=(2, 0))
@@ -1030,7 +1026,7 @@ class SerialTestTool(tk.Tk):
         """Keep graph controls usable without stealing excessive plot width."""
         if not hasattr(self, "_graph_checkbox_canvas"):
             return
-        width = max(150, min(240, int(event.width * 0.28)))
+        width = max(145, min(200, int(event.width * 0.24)))
         self._graph_controls_width = width
         self._graph_checkbox_canvas.configure(width=width)
         if hasattr(self, "graph_legend"):
@@ -1059,7 +1055,7 @@ class SerialTestTool(tk.Tk):
             row.pack(fill="x", anchor="w")
 
             swatch = tk.Canvas(row, width=12, height=12, highlightthickness=0, background="#1e1e1e")
-            swatch.pack(side="left", padx=(3, 5), pady=6)
+            swatch.pack(side="left", padx=(3, 4), pady=2)
             self._graph_swatches[p.id] = swatch
 
             ttk.Checkbutton(
@@ -1231,7 +1227,7 @@ class SerialTestTool(tk.Tk):
             canvas.create_text(
                 margin_l + plot_w / 2, margin_t + plot_h / 2,
                 text="Tick a parameter on the left to start logging",
-                fill="#666", font=("TkFixedFont", 10),
+                fill="#666", font=("TkFixedFont", 9),
             )
             return
 
@@ -1246,7 +1242,7 @@ class SerialTestTool(tk.Tk):
         if not have_data:
             canvas.create_text(
                 margin_l + plot_w / 2, margin_t + plot_h / 2,
-                text="Waiting for data…", fill="#666", font=("TkFixedFont", 10),
+                text="Waiting for data…", fill="#666", font=("TkFixedFont", 9),
             )
             return
 
@@ -1338,11 +1334,11 @@ class SerialTestTool(tk.Tk):
     # -- Log panel ----------------------------------------------------------
 
     def _build_log_panel(self, parent: ttk.Frame) -> None:
-        frame = ttk.Frame(parent, padding=(8, 6))
+        frame = ttk.Frame(parent, padding=(5, 4))
         frame.pack(fill="both", expand=True)
 
         toolbar = ttk.Frame(frame)
-        toolbar.pack(fill="x", pady=(0, 4))
+        toolbar.pack(fill="x", pady=(0, 2))
         ttk.Button(toolbar, text="Clear", command=self._clear_log).pack(side="right")
 
         self.log_text = scrolledtext.ScrolledText(

@@ -24,12 +24,14 @@ void MotionManager::begin()
 
 void MotionManager::update()
 {
+    // Keep the asynchronous I2C state machine progressing on every main-loop pass.
+    _encoder.update();
+
     // update the Control Loop slowly (at 200Hz)
     uint32_t now = micros();
     if (now - _lastControlMicros < MOTION_UPDATE_PERIOD_US) return;
     _lastControlMicros = now;
 
-    //_encoder.update(); 
     updateControlLoop();
 }
 

@@ -137,6 +137,7 @@ public:
     // Status
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Includes the bus finishing a pending STOP after a completed transaction.
     bool isBusy() const;
 
     bool isDone() const;
@@ -150,6 +151,10 @@ public:
     uint8_t getState() const;
 
     uint8_t getHardwareStatus() const;
+
+    uint8_t getLastErrorState() const;
+
+    uint8_t getLastErrorStatus() const;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
     // Clear completed transaction.
@@ -252,6 +257,9 @@ private:
 
     uint32_t _frequency = 100000UL;
 
+    uint8_t _lastErrorState = 0;
+    uint8_t _lastErrorStatus = 0;
+
     static constexpr uint32_t STATE_TIMEOUT_US = 5000UL;
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -275,4 +283,6 @@ private:
     void initialisePeripheral();
 
     void recoverPeripheral();
+
+    bool isBusIdle() const;
 };
